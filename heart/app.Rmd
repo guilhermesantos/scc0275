@@ -1,0 +1,101 @@
+---
+title: "Análise Exploratória"
+author: "Teh Led Red"
+date: "18/09/2020"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("heart.R")
+```
+
+#### Diagrama de dispersão entre variáveis contínuas
+
+
+```{r, echo=FALSE}
+inputPanel(
+  selectInput("x", label = "Variável no eixo X",
+              choices = cont_names),
+  
+  selectInput("y", label = "Variável no eixo Y",
+              choices = cont_names, selected = cont_names[2])
+)
+
+
+renderPlot({
+  varx = input$x
+  vary = input$y
+  x = pull(heart, varx)
+  y = pull(heart, vary)
+  ggplot(heart, aes(x = x, y = y)) +
+  geom_point(aes(color = as.factor(condition)), size = 3) +
+  theme(legend.position = "none") +
+  labs(title = paste("Correlação =", round(cor(x, y), 2)),
+       x = varx, y = vary) 
+})
+```
+
+#### Variáveis categóricas
+
+**Mutual information entre fator e label $I(x, y)$**
+
+```{r, echo=FALSE}
+
+renderTable({
+  map_dfc(heart[factors_names],
+     ~ mutinformation(.x, Y)
+  )
+}, align = 'c')
+```
+
+```{r, echo=FALSE}
+inputPanel(
+  selectInput("fator", label = "Selecione o Fator",
+              choices = factors_names)
+  
+)
+
+
+
+renderPlot({
+  fator = as.factor(pull(heart, input$fator))
+  ggplot(heart) +
+       geom_bar(aes(x = fator, fill = factor(heart$condition,labels=c("Negativo","Positivo")))) +
+       labs(title = input$fator,
+            x = "",
+            y = "",
+            fill = "Doença") 
+})
+
+ 
+
+renderPlot({
+  fator = as.factor(pull(heart, input$fator))
+  ggplot(heart) +
+    geom_bar(aes(x = as.factor(heart$condition), fill = fator)) +
+      labs(title = "Doença", x = "", y = "", fill = input$fator)
+})
+```
+
+
+#### K-NN
+
+- **Hold-out**: Divisão de treino e teste: $0.8$ e $0.2$.
+
+```{r, echo = FALSE}
+renderTable({
+  tab_hold_out
+}, digits = 4, align = 'c', rownames = TRUE)
+```
+
+- **k-folds Cross Validation**:
+
+```{r, echo = FALSE}
+renderTable({
+  tab_kfold
+}, digits = 4, align = 'c', rownames = TRUE)
+
+```
+
