@@ -8,7 +8,7 @@ library(infotheo)
 theme_set(theme_light())
 
 
-heart<- read_csv("heart_cleveland.csv")
+heart<- read_csv("heart/heart_cleveland.csv")
 
 glimpse(heart)
 
@@ -29,6 +29,14 @@ cor(heart[cont_names]) %>%
 ggpairs(data = heart[cont_names], mapping = aes(color = as.factor(heart$condition))) +
   labs(title = "Correlação entre as variáveis contínuas")
 
+map2(heart[cont_names], cont_names,
+  ~ggplot()  +
+    geom_density(aes(x = .x, fill = factor(heart$condition, labels=c("Negativo","Positivo")))) +
+    labs(title = paste("Distribuição de", .y),
+         x = "",
+         y = "",
+         fill = "Doença")
+)
 
 map(2:5, 
      ~ ggplot(heart[cont_names], aes(x = heart[cont_names][[1]], y = heart[cont_names][[.x]])) +
@@ -48,7 +56,7 @@ map(2:5,
 summary(heart %>%
   mutate_at(factors_names, ~factor(.)) %>%
     select_if(is.factor)
-    )
+    ) #----> nenhum fator possui nivel unico
 
 
 map2(heart[factors_names], factors_names,
@@ -77,41 +85,35 @@ map_dfc(cont_discretized[cont_names],
 )
 
 
+glm = glm(condition ~., data = heart)%>%
+  summary() %>% .$coefficients
+
+names(which(glm[,4] < 0.1))
 
 # PCA ---------------------------------------------------------------------
 
 #factor_new = heart[factors_names] + rnorm(0, sd = 0.001, n = nrow(heart))
 
-#cov(heart[factors_names])
-# X = heart[-14]
-# scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})
-# 
-# scaled.cov = cov(scaled)
-# E = eigen(scaled.cov)
-# 
-# 
-# print(sum(E$values))
-# 
-# scores = scaled %*% E$vectors
-# plot(scores, col = as.factor(Y), pch=16)
-# 
-# # Posso usar da relevância doa auto-valores para escolher quais PCs
-# # são os mais importantes
-# plot(cumsum(E$values / sum(E$values)))
-# r = cumsum(E$values / sum(E$values))
-# id = which(r >= 0.9)[1]
-# 
-# X.reduzida = scores[,1:id]
-# plot(X.reduzida, col= as.factor(Y), pch =16)
-# 
-# colnames(E$vectors) = paste0("PC", 1:length(colnames(X)))
-# rownames(E$vectors) = names(X)
-# 
-# df= as.data.frame.matrix(E$vectors)
-# cor(df)
-# 
-# apply(normalized, 2, range)
+X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})
 
+scaled.cov = cov(X_scaled)
+E = eigen(scaled.cov)
+colnames(E$vectors) = paste0("PC", 1:length(colnames(X)))
+rownames(E$vectors) = names(X)
+
+scores = X_scaled %*% E$vectors
+plot(scores, col = as.factor(Y), pch=16)
+ 
+r = cumsum(E$values / sum(E$values))
+plot(r, pch =16, xlab = "PC", ylab = "% de variância explicada") 
+id = which(r >= 0.9)[1]
+abline(v = id, h = 0.9, col = 2)
+
+X.reduzida = scores[,1:id]
+
+## dúvidas: 
+cor(E$vectors) %>% round(., 2) 
+cor(scores) %>% round(., 2)  # loadings são ortogonais
 
 # KNN ---------------------------------------------------------------------
 
@@ -195,16 +197,17 @@ knn <- function(query, k, X, Y) {
 
 # Hold-out ----------------------------------------------------------------
 
-X_scaled = scale(X)
+dataset = X_scaled
+# dataset = X.reduzida   # Conjunto de PCs
 train.size = 0.8
 
 # Conjunto de Treinamento
-ids = sample(1:nrow(X), size = ceiling(train.size*nrow(X_scaled)))  # Sortear
-X.train = X_scaled[ids,]	
+ids = sample(1:nrow(dataset), size = ceiling(train.size*nrow(dataset)))  # Sortear
+X.train = dataset[ids,]	
 Y.train = Y[ids]	
 
 # Conjunto de Teste
-X.test = X_scaled[-ids,]
+X.test = dataset[-ids,]
 Y.test = Y[-ids]
 
 tab_hold_out = matrix(0, nrow = 10, ncol = 1)
@@ -218,23 +221,28 @@ for(k in 1:10){
     }
     taxa.acerto = acc/nrow(X.test)
   }
-    tab_hold_out[k, 1] = taxa.acerto
-} 
-
+      tab_hold_out[k, 1] = taxa.acerto
+  }
 
 colnames(tab_hold_out) = "Taxa de acerto"
 rownames(tab_hold_out) = paste0(1:10, "-nn")
 
+tab_hold_out %>% .[c(5,10),]
+
+
+
+
 # K-Fold Cross Validation -------------------------------------------------
 
 
-data = cbind(as.matrix(X_scaled),Y)
+dataset = cbind(X_scaled, Y)  
+# dataset = cbind(X.reduzida, Y)  # Conjunto de PCs
 
 table = matrix(0, 6, 10)
 for(i in 5:10){
   
   cat("Running for k =", i, "folds\n")
-  folds = prepare_folds(data = data, colX = 1:13, colY = 14, k_fold = 5)
+  folds = prepare_folds(data = dataset, colX = 1:13, colY = 14, k_fold = i)     # colX: vetor contem inteiros indica indice de coluna pra X explicativa, colY: numero indica indice de coluna do label 
   
   res = c()
   for(j in 1:10){
@@ -249,7 +257,7 @@ for(i in 5:10){
 tab_kfold = t(table)
 colnames(tab_kfold) = paste(5:10, "folds")
 rownames(tab_kfold) = paste0(1:10, "-nn")
-
+max(tab_kfold)
 
 
 
