@@ -11,6 +11,32 @@ knitr::opts_chunk$set(echo = TRUE)
 source("heart.R")
 ```
 
+### Distribuição 
+```{r, echo = FALSE}
+inputPanel(
+  selectInput("var", label = "Variável",
+              choices = cont_names)
+)
+
+renderPlot({
+  var = pull(heart, input$var)
+  m = mean[[input$var]]
+  ggplot(heart, aes(x = var, fill = factor(condition, labels=c("Negativo","Positivo")))) +
+  geom_density (alpha = 0.7) +
+  scale_x_continuous(breaks = unlist(m[2]), label = round(unlist(m[2]), 2)) +
+  geom_segment(aes(x = unlist(m[2])[1], y = -Inf, xend = unlist(m[2])[1], yend = Inf),
+               color = 2, linetype = 'dashed', size = 1) +
+  geom_segment(aes(x = unlist(m[2])[2], y = -Inf, xend = unlist(m[2])[2], yend = Inf),
+               color = 4, linetype = 'dashed', size = 1) +
+  labs(title = paste("Distribuição de", input$var),
+       x = "",
+       y = "",
+       fill = "Doença")
+})
+
+```
+
+
 #### Diagrama de dispersão entre variáveis contínuas
 
 
@@ -57,7 +83,12 @@ inputPanel(
   
 )
 
-
+renderPlot({
+  fator = as.factor(pull(heart, input$fator))
+  ggplot(heart) +
+    geom_bar(aes(x = as.factor(heart$condition), fill = fator)) +
+      labs(title = "Doença", x = "", y = "", fill = input$fator)
+})
 
 renderPlot({
   fator = as.factor(pull(heart, input$fator))
@@ -67,15 +98,6 @@ renderPlot({
             x = "",
             y = "",
             fill = "Doença") 
-})
-
- 
-
-renderPlot({
-  fator = as.factor(pull(heart, input$fator))
-  ggplot(heart) +
-    geom_bar(aes(x = as.factor(heart$condition), fill = fator)) +
-      labs(title = "Doença", x = "", y = "", fill = input$fator)
 })
 ```
 

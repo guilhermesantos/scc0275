@@ -1,14 +1,12 @@
 library(tidyverse)
-library(readr)
 library(GGally)
-library(rlang)
 library(shiny)
 library(infotheo)
 
 theme_set(theme_light())
 
 
-heart<- read_csv("heart/heart_cleveland.csv")
+heart<- read_csv("heart_cleveland.csv")
 
 glimpse(heart)
 
@@ -22,23 +20,44 @@ X <-  heart[,-14]
 
 # Continous variables -----------------------------------------------------
 
-cor(heart[cont_names]) %>%
-  round(.,2)
+# cor(heart[cont_names]) %>%
+#   round(.,2)
 
 
-ggpairs(data = heart[cont_names], mapping = aes(color = as.factor(heart$condition))) +
-  labs(title = "Correlação entre as variáveis contínuas")
+# ggpairs(data = heart[cont_names], mapping = aes(color = as.factor(heart$condition))) +
+#   labs(title = "Correlação entre as variáveis contínuas")
 
-map2(heart[cont_names], cont_names,
-  ~ggplot()  +
-    geom_density(aes(x = .x, fill = factor(heart$condition, labels=c("Negativo","Positivo")))) +
-    labs(title = paste("Distribuição de", .y),
-         x = "",
-         y = "",
-         fill = "Doença")
-)
 
-map(2:5, 
+mean = list()
+for (i in 1:5){
+  mean[[i]] = heart[, c(cont_names[i], "condition")] %>%
+    group_by(condition) %>%
+    summarise(mean = mean(!!sym(cont_names[i])))
+}
+mean = set_names(mean, cont_names)
+
+
+p1 = list()
+
+for(i in 1:5){
+    
+    p1[[i]] =
+      ggplot(heart[cont_names])  +
+      geom_density(aes(x = heart[cont_names][[i]], fill = factor(heart$condition, labels=c("Negativo","Positivo"))), alpha = 0.7) +
+      scale_x_continuous(breaks = unlist(mean[[i]][2]), label = round(unlist(mean[[i]][2]), 2)) +
+      geom_segment(aes(x = unlist(mean[[i]][2])[1], y = -Inf, xend = unlist(mean[[i]][2])[1], yend = Inf),
+                   color = 2, linetype = 'dashed', size = 1) +
+      geom_segment(aes(x = unlist(mean[[i]][2])[2], y = -Inf, xend = unlist(mean[[i]][2])[2], yend = Inf),
+                   color = 4, linetype = 'dashed', size = 1) +
+      labs(title = paste("Distribuição de", cont_names[i]),
+           x = "",
+           y = "",
+           fill = "Doença") 
+    
+      
+}
+
+p2 = map(2:5, 
      ~ ggplot(heart[cont_names], aes(x = heart[cont_names][[1]], y = heart[cont_names][[.x]])) +
       geom_point(aes(color = as.factor(heart$condition)), size = 2) +
       theme(legend.position = "none") +
@@ -51,30 +70,33 @@ map(2:5,
 
 
 
-# Categorical variables ---------------------------------------------------
+#Categorical variables ---------------------------------------------------
 
 summary(heart %>%
   mutate_at(factors_names, ~factor(.)) %>%
     select_if(is.factor)
-    ) #----> nenhum fator possui nivel unico
+    )  #----> nenhum fator possui nivel unico
 
 
-map2(heart[factors_names], factors_names,
+p3 = map2(heart[factors_names], factors_names,
     ~ ggplot() + geom_bar(aes(x = as.factor(Y), fill = as.factor(.x))) +
-      labs(title = .y, x = "Condition", y = "", fill = .y)
+      labs(title = paste(.y, "em Doença"), x = "Doença", y = "", fill = .y)
 )
 
-map2(heart[factors_names], factors_names,
+
+
+p4 = map2(heart[factors_names], factors_names,
      ~ ggplot(heart) +
-       geom_bar(aes(x = as.factor(.x), fill = as.factor(heart$condition))) +
-       labs(title = .y,
-            x = "",
-            y = "") +
-       theme(legend.position = "none")
+       geom_bar(aes(x = as.factor(.x), fill = factor(heart$condition, labels = c("Negativo", "Positivo")))) +
+       labs(title = paste("Doença em", .y),
+            x = .y,
+            y = "",
+            fill = "Doença") 
 )
 
+p5 = c(p3, p4)
 
-map_dfc(heart[factors_names],
+entropy = map_dfc(heart[factors_names],
      ~ mutinformation(.x, Y)
 )
 
@@ -90,10 +112,20 @@ glm = glm(condition ~., data = heart)%>%
 
 names(which(glm[,4] < 0.1))
 
+# library(corrr)
+# heart[,-14] %>%
+#   correlate() %>%
+#   rearrange() %>%
+#   shave() %>%
+#   rplot(shape = 15, colours = c("darkred", "white", "darkblue")) 
+
+
+
 # PCA ---------------------------------------------------------------------
 
 #factor_new = heart[factors_names] + rnorm(0, sd = 0.001, n = nrow(heart))
 
+# X_scaled = scale(X)
 X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})
 
 scaled.cov = cov(X_scaled)
@@ -103,67 +135,67 @@ rownames(E$vectors) = names(X)
 
 scores = X_scaled %*% E$vectors
 plot(scores, col = as.factor(Y), pch=16)
- 
+
 r = cumsum(E$values / sum(E$values))
-plot(r, pch =16, xlab = "PC", ylab = "% de variância explicada") 
+plot(r, pch =16, xlab = "PC", ylab = "% de variância explicada")
 id = which(r >= 0.9)[1]
 abline(v = id, h = 0.9, col = 2)
 
 X.reduzida = scores[,1:id]
 
-## dúvidas: 
-cor(E$vectors) %>% round(., 2) 
+## dúvidas:
+cor(E$vectors) %>% round(., 2)
 cor(scores) %>% round(., 2)  # loadings são ortogonais
 
 # KNN ---------------------------------------------------------------------
 
 prepare_folds <- function(data, colX, colY, k_fold = 10){
-  
+
   require(dismo)
-  
+
   # Lista com comprimento de K
   X.folds = rep(list(NA), k_fold)
   Y.folds = rep(list(NA), k_fold)
-  
+
   classes = unique(data[, colY])
   # Armazenar observações pertencentes ao k-ésimo fold
   for (i in seq_along(classes)) {
-    
+
     ids = which(data[, colY] == classes[i])
     foldId = kfold(ids, k = k_fold)
-    
+
     for (j in seq_along(1:k_fold)) {
       if (any(is.na(X.folds[[j]]))) {
         X.folds[[j]] = as.matrix(data[ids[which(foldId == j)], seq_along(colX)])
         Y.folds[[j]] = as.vector(data[ids[which(foldId == j)], colY])
       } else {
-        X.folds[[j]] = 
-          rbind(X.folds[[j]], 
+        X.folds[[j]] =
+          rbind(X.folds[[j]],
                 as.matrix(data[ids[which(foldId == j)], seq_along(colX)]))
-        Y.folds[[j]] = c(Y.folds[[j]], 
+        Y.folds[[j]] = c(Y.folds[[j]],
                          as.vector(data[ids[which(foldId == j)], colY]))
       }
     }
   }
-  
+
   return(list(X.folds = X.folds, Y.folds = Y.folds))
 }
 
 test_k_knn <- function(X.folds, Y.folds, k_knn = 3){
-  
+
   k_fold = length(folds$X.folds)
   acc = c()
-  
+
   for (i in 1:k_fold) {
     X.train = NULL
     Y.train = c()
-    
+
     # Treinar com todos os folds exceto o fold i
     for (j in setdiff(1:k_fold, i)) {
       X.train = rbind(X.train, X.folds[[j]])
       Y.train = c(Y.train, Y.folds[[j]])
     }
-    
+
     # Testar com o fold = i
     correct = 0
     for (j in 1:nrow(X.folds[[i]])) {
@@ -198,13 +230,13 @@ knn <- function(query, k, X, Y) {
 # Hold-out ----------------------------------------------------------------
 
 dataset = X_scaled
-# dataset = X.reduzida   # Conjunto de PCs
+dataset = X.reduzida
 train.size = 0.8
 
 # Conjunto de Treinamento
 ids = sample(1:nrow(dataset), size = ceiling(train.size*nrow(dataset)))  # Sortear
-X.train = dataset[ids,]	
-Y.train = Y[ids]	
+X.train = dataset[ids,]
+Y.train = Y[ids]
 
 # Conjunto de Teste
 X.test = dataset[-ids,]
@@ -213,7 +245,7 @@ Y.test = Y[-ids]
 tab_hold_out = matrix(0, nrow = 10, ncol = 1)
 for(k in 1:10){
   cat("Running for k =",k,"\n")
-  acc = 0 
+  acc = 0
   for (i in 1:nrow(X.test)){
     pred = knn(query = X.test[i,], k = k, X = X.train, Y = Y.train)
     if (pred$max.prob.class == Y.test[i]){
@@ -221,29 +253,24 @@ for(k in 1:10){
     }
     taxa.acerto = acc/nrow(X.test)
   }
-      tab_hold_out[k, 1] = taxa.acerto
-  }
+    tab_hold_out[k, 1] = taxa.acerto
+}
 
+tab_hold_out
 colnames(tab_hold_out) = "Taxa de acerto"
 rownames(tab_hold_out) = paste0(1:10, "-nn")
 
-tab_hold_out %>% .[c(5,10),]
-
-
-
-
 # K-Fold Cross Validation -------------------------------------------------
 
-
-dataset = cbind(X_scaled, Y)  
-# dataset = cbind(X.reduzida, Y)  # Conjunto de PCs
+data = cbind(X_scaled, Y)
+data = cbind(X.reduzida,Y) #PCA
 
 table = matrix(0, 6, 10)
 for(i in 5:10){
-  
+
   cat("Running for k =", i, "folds\n")
-  folds = prepare_folds(data = dataset, colX = 1:13, colY = 14, k_fold = i)     # colX: vetor contem inteiros indica indice de coluna pra X explicativa, colY: numero indica indice de coluna do label 
-  
+  folds = prepare_folds(data = data, colX = 1:10, colY = 11, k_fold = i)
+
   res = c()
   for(j in 1:10){
     res[j] = test_k_knn(X.folds = folds$X.folds, Y.folds = folds$Y.folds, k_knn = j) %>%
@@ -251,14 +278,14 @@ for(i in 5:10){
     cat("k_knn =", j, res[j], "\n")
     table[i-4,j] = res[j]
   }
-  
+
 }
 
 tab_kfold = t(table)
 colnames(tab_kfold) = paste(5:10, "folds")
 rownames(tab_kfold) = paste0(1:10, "-nn")
-max(tab_kfold)
 
+max(tab_kfold)
 
 
 
