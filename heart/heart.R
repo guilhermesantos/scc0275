@@ -16,7 +16,7 @@ factors_names <-  c("sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal
 cont_names <- names(heart)[!names(heart) %in% c(factors_names, "condition")]
 X <-  heart[,-14]
 
-
+summary(factor(Y))
 
 # Continous variables -----------------------------------------------------
 
@@ -78,23 +78,36 @@ summary(heart %>%
     )  #----> nenhum fator possui nivel unico
 
 
-p3 = map2(heart[factors_names], factors_names,
-    ~ ggplot() + geom_bar(aes(x = as.factor(Y), fill = as.factor(.x))) +
-      labs(title = paste(.y, "em Doença"), x = "Doença", y = "", fill = .y)
+p3 = map(factors_names, 
+  ~heart %>%
+    group_by(condition) %>%
+    count(eval(as.name(.x))) %>%
+    rename(.x = `eval(as.name(.x))`) %>%
+    ggplot(aes(x = factor(condition), y = n, fill = factor(.x), label = n)) + 
+    geom_bar(stat = "identity") +
+    geom_text(size = 3, position = position_stack(vjust = 0.5), colour = "white") +
+    labs(title = paste(.x, "em Doença"), x = "Doença", y = "", fill = .x)
 )
 
 
 
-p4 = map2(heart[factors_names], factors_names,
-     ~ ggplot(heart) +
-       geom_bar(aes(x = as.factor(.x), fill = factor(heart$condition, labels = c("Negativo", "Positivo")))) +
-       labs(title = paste("Doença em", .y),
-            x = .y,
-            y = "",
-            fill = "Doença") 
+p4 = map(factors_names,
+         ~ heart %>%
+            group_by(eval(as.name(.x))) %>%
+            count(condition) %>%
+            rename(.x = `eval(as.name(.x))`) %>%
+            mutate(.x = factor(.x), condition = factor(condition)) %>%
+            ggplot(aes(x = .x, y = n, fill = condition, label = n)) + 
+            geom_bar(stat = "identity") +
+            geom_text(size = 3, position = position_stack(vjust = 0.5), colour = "white") +
+            labs(title = paste("Doença em", .x),
+                 x = .x,
+                 y = "",
+                 fill = "Doença")
 )
 
 p5 = c(p3, p4)
+  
 
 entropy = map_dfc(heart[factors_names],
      ~ mutinformation(.x, Y)
