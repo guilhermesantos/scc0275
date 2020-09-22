@@ -125,8 +125,7 @@ names(which(glm[,4] < 0.1))
 
 #factor_new = heart[factors_names] + rnorm(0, sd = 0.001, n = nrow(heart))
 
-# X_scaled = scale(X)
-X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})
+X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})  # X_scaled = scale(X) 
 
 scaled.cov = cov(X_scaled)
 E = eigen(scaled.cov)

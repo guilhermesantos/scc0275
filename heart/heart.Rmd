@@ -1,0 +1,69 @@
+---
+title: "Análise Exploratória"
+author: "Teh Led Red"
+date: "20/09/2020"
+output:
+  html_document: default
+  pdf_document: default
+always_allow_html: true
+ 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+options(encoding = 'UTF-8')
+library(tidyverse)
+library(GGally)
+library(shiny)
+library(infotheo)
+library(kableExtra)
+theme_set(theme_light())
+
+
+source("heart.R")
+```
+
+### Variáveis contínuas: age, trestbps, chol, thalach e oldpeak.
+
+
+#### Distribuição
+
+```{r density, echo = FALSE, fig.show="hold", out.width="50%"}
+
+for(i in 1:5){
+  print(p1[[i]])
+}
+```
+
+Por meio da comparação entre densidade estimada para grupo com e sem doença no gráfico da distribuição de cada variável contínua, notamos que em geral não existe uma divisão óbvia entre distribuição com e sem doença em cada variável. Para a variável *age*, percebe-se que a distribuição de idade para grupo com doença tem maior concentração nas idades avançadas sendo que a média igual 56,76. Para a variável *thalach* e *oldpeak*, apesar de possuir muita área em sobreposição entre dois grupos, percebe-se que a dispersão do grupo com doença é mais larga. O grupo com doença possui uma média na frequência cardíaca máxima (*thalach*) menor que o grupo sem doença (139,11 e 158,58) e uma média de oldpeak maior em relação ao grupo sem doença (1,59 e 0,6).
+
+
+#### Correlação
+
+```{r scatter, fig.show="hold", out.width="50%"}
+walk(p2, print)
+```
+
+De modo geral, as variáveis não são fortemente correlacionados. O maior correlação é o par de *age* e *thalach* cujo coeficiente de Pearson é -0,39, isso indica que a frequência cardíaca máxima tende a diminuir conforme o aumento da idade. Visualmente, o grupo com a doença parece possuir uma frequência menor em comparação ao grupo de sem doença.
+
+
+### Variáveis categóricas: sex, cp, fbs, restecg, exang, slope, ca, thal.
+
+```{r barplot, fig.show="hold", out.width="50%"}
+walk(p5[c(1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15, 8, 16)], print)
+```
+
+Para cada variável categórica é plotado dois gráficos de barra, o primeiro tem no seu eixo X $0:$ grupo sem doença e $1:$ grupo com doença e eixo Y a contagem de frequência, cada barra do grupo consiste a proporção corresponde ao nível da variável categórica estudada. Já o segundo gráfico de barra faz o contrário, tem no seu eixo X o número inteiro indicativo ao nível correpondente da variável categórica estudada e o eixo Y a contagem de frequência, cada barra do nível consiste a composição de proporção do grupo com e sem doença.
+
+Note-se a distribuição dos níveis em algumas variáveis não é homogênea entre grupo com e sem doença: 
+*cp*, *exang*, *slope*, *ca* e *thal*, isso indica que essas variáveis podem ser candidatos aos fatores principais na modelagem. A seguir é apresentada a tabela que contem a *mutual information* calculada para cada variável categórica com o indicador de doença ($I(x,y)$).   
+
+```{r entropy}
+round(entropy, 4)%>%
+  kbl(caption = "<center><strong>Mutual information</strong></center>",
+    escape = FALSE,
+    format = "html") %>%
+  kable_styling()
+
+```
+
