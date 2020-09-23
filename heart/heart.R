@@ -57,6 +57,16 @@ for(i in 1:5){
       
 }
 
+## Escolher um: Histogram (densidade) ou boxplot
+map2(heart[cont_names], cont_names,
+    ~ggplot(heart[cont_names], aes(x = factor(Y, labels=c("Negativo","Positivo")), y = .x, fill = factor(Y, labels=c("Negativo","Positivo"))))  +
+      geom_boxplot() +
+      labs(x = "", y = .y, fill = "Doença")
+)
+  
+
+
+
 p2 = map(2:5, 
      ~ ggplot(heart[cont_names], aes(x = heart[cont_names][[1]], y = heart[cont_names][[.x]])) +
       geom_point(aes(color = as.factor(heart$condition)), size = 2) +
@@ -138,7 +148,7 @@ names(which(glm[,4] < 0.1))
 
 #factor_new = heart[factors_names] + rnorm(0, sd = 0.001, n = nrow(heart))
 
-X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})  # X_scaled = scale(X) 
+X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})  # X_scaled = scale(X)
 
 scaled.cov = cov(X_scaled)
 E = eigen(scaled.cov)

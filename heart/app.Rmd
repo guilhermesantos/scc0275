@@ -15,23 +15,34 @@ source("heart.R")
 ```{r, echo = FALSE}
 inputPanel(
   selectInput("var", label = "Variável",
-              choices = cont_names)
+              choices = cont_names),
+  radioButtons("plotType", label = "Tipo de gráfico",
+               inline = FALSE, 
+               choices = c("Boxplot" = 1, "Densidade estimada" = 2), selected = 1)
 )
 
 renderPlot({
   var = pull(heart, input$var)
   m = mean[[input$var]]
-  ggplot(heart, aes(x = var, fill = factor(condition, labels=c("Negativo","Positivo")))) +
-  geom_density (alpha = 0.7) +
-  scale_x_continuous(breaks = unlist(m[2]), label = round(unlist(m[2]), 2)) +
-  geom_segment(aes(x = unlist(m[2])[1], y = -Inf, xend = unlist(m[2])[1], yend = Inf),
-               color = 2, linetype = 'dashed', size = 1) +
-  geom_segment(aes(x = unlist(m[2])[2], y = -Inf, xend = unlist(m[2])[2], yend = Inf),
-               color = 4, linetype = 'dashed', size = 1) +
-  labs(title = paste("Distribuição de", input$var),
-       x = "",
-       y = "",
-       fill = "Doença")
+  if(input$plotType == 2){
+    ggplot(heart, aes(x = var, fill = factor(condition, labels=c("Negativo","Positivo")))) +
+    geom_density (alpha = 0.7) +
+    scale_x_continuous(breaks = unlist(m[2]), label = round(unlist(m[2]), 2)) +
+    geom_segment(aes(x = unlist(m[2])[1], y = -Inf, xend = unlist(m[2])[1], yend = Inf),
+                 color = 2, linetype = 'dashed', size = 1) +
+    geom_segment(aes(x = unlist(m[2])[2], y = -Inf, xend = unlist(m[2])[2], yend = Inf),
+                 color = 4, linetype = 'dashed', size = 1) +
+    labs(title = paste("Distribuição de", input$var),
+         x = "",
+         y = "",
+         fill = "Doença")
+  }else{
+    ggplot(heart[cont_names], 
+           aes(x = factor(Y, labels=c("Negativo","Positivo")), y = var, 
+               fill = factor(Y, labels=c("Negativo","Positivo"))))  +
+      geom_boxplot() +
+      labs(x = "", y = input$var, fill = "Doença")
+  }
 })
 
 ```
