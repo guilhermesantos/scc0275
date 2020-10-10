@@ -17,13 +17,6 @@ source('aed.R', encoding = 'UTF-8')
 
 
 
-
-
-
-
-
-
-
 ui <- fluidPage(
   shinyBS:::shinyBSDep,
   
@@ -150,7 +143,7 @@ ui <- fluidPage(
                           ),
                           mainPanel(
                             width = 9,
-                            plotOutput("plot_3") %>% withSpinner,
+                            plotOutput("plot_3", height = 650) %>% withSpinner,
                             textOutput("text_plot_3")
                           )
                         )
@@ -188,7 +181,7 @@ ui <- fluidPage(
                             ),
                             mainPanel(
                               width = 9,
-                              plotOutput("plot_1") %>% withSpinner,
+                              plotOutput("plot_1", height = 650) %>% withSpinner,
                               textOutput("text_plot_1")
                             )
                           )
@@ -214,7 +207,7 @@ ui <- fluidPage(
                             ),
                             mainPanel(
                               width = 9,
-                              plotOutput("plot_2") %>% withSpinner
+                              plotOutput("plot_2", height = 650) %>% withSpinner
                             )
                           )
                           
@@ -256,25 +249,19 @@ ui <- fluidPage(
                         tabPanel("Comparação")
              )
              
-  # )
 )
 
 
-
-
-
-
-
-
-
 server<- function(input, output, session) {
- 
+
+# Variáveis Contínuas ----
   output$plot_1 <- renderPlot({
     var = pull(heart, input$var)
     mean = unlist(resumo[[input$var]][2])
     median = unlist(resumo[[input$var]][3])
     if(input$marca_media == 1) m = mean else m = median
     
+    # Gráfico de boxplot -----
     if(input$plotType == 1){
       
       ggplot(heart[cont_names], 
@@ -284,7 +271,7 @@ server<- function(input, output, session) {
         scale_fill_manual(values=c("#0073C2FF", "#EFC000FF")) +
         labs(x = "", y = input$var, fill = "Doença") 
   
-      
+    # Gráfico de Densidade estimada ---- 
     }else if(input$plotType == 2){
       
       
@@ -300,7 +287,8 @@ server<- function(input, output, session) {
              x = "",
              y = "",
              fill = "Doença") 
-      
+
+    # Histograma -----  
     }else{
       
       ggplot(heart[cont_names], 
@@ -330,12 +318,10 @@ server<- function(input, output, session) {
       )
     }
     
-  })
-
+  })  
   
-  
-  output$plot_2 <- 
-    renderPlot({
+  # Diagrama de dispersão -----
+  output$plot_2 <- renderPlot({
       varx = input$x
       vary = input$y
       x = pull(heart, varx)
@@ -347,6 +333,7 @@ server<- function(input, output, session) {
         theme(legend.position = "none") +
         scale_color_manual(values=c("#0073C2FF", "#EFC000FF")) 
       
+      # Separar por classe
       if(!input$facet){
         return(plot +
                  geom_smooth(method = "lm", se = FALSE, color = "grey") +
@@ -354,17 +341,21 @@ server<- function(input, output, session) {
                                       "Coeficiente de Spearman =", round(cor(x, y, method = "spearman"), 2)),
                       x = varx, y = vary) 
         )
+      
+      # Geral
       }else{
         return(plot +
                  facet_grid(. ~ factor(condition, labels = c("Negativo", "Positivo"))) +
                  geom_smooth(method = "lm", se = FALSE, color = "darkgray") +
                  labs(x = varx, y = vary)
         )
-      }
-        
+      }       
          
-    })
+  })
   
+# Variáveis Categóricas ---- 
+  
+  # Gráfico de barra ----
   output$plot_3 <- renderPlot({
     fator = input$fator
     tit = switch(fator,
@@ -404,9 +395,8 @@ server<- function(input, output, session) {
     }
     
   })
-  output$table <- DT::renderDataTable({
-    DT::datatable(cars)
-  })
+
+#  
 }
 
 shinyApp(ui, server)
