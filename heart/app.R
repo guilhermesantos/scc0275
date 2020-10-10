@@ -15,15 +15,6 @@ lapply(pack, FUN = function(pack){do.call("library", list(pack)) })
 
 source('aed.R', encoding = 'UTF-8')
 
-
-
-
-
-
-
-
-
-
 ui <- fluidPage(
   shinyBS:::shinyBSDep,
   
@@ -128,7 +119,7 @@ ui <- fluidPage(
                                  ),
                                  p(strong("thal:"),
                                    "variável categórica significando o status quanto à doença denominada talassemia, que provoca a redução da quantidade de hemoglobina em circulação no sangue.",
-                                   span("3: normal, 6: defeito fixo, 7: defeito reversível", style = "color:red")
+                                   span("3: normal, 6: defeito fixo, 7: defeito reversível.", style = "color:red")
                                  )
                         
                         )
@@ -138,21 +129,32 @@ ui <- fluidPage(
                   tabsetPanel(
                       tabPanel(
                         "Variáveis Categóricas",
-                         br(),
-                        sidebarLayout(
-                          sidebarPanel(
-                            width = 3,
-                            h4("Gráfico de barra"),
-                            selectInput("fator", 
-                                        label = "Selecione o Fator",
-                                        choices = factors_names
+                        br(),
+                        fluidRow(
+                          sidebarLayout(
+                            sidebarPanel(
+                              width = 3,
+                              h4("Gráfico de barra"),
+                              selectInput("fator", 
+                                          label = "Selecione o Fator",
+                                          choices = factors_names
+                              ),
+                              checkboxInput("stack", "Stack", value = FALSE)
+                              
+                            ),
+                            mainPanel(
+                              width = 9,
+                              plotOutput("plot_3") %>% withSpinner,
+                              textOutput("text_plot_3")                            
                             )
-                          ),
-                          mainPanel(
-                            width = 9,
-                            plotOutput("plot_3") %>% withSpinner,
-                            textOutput("text_plot_3")
                           )
+                        ),
+                        fluidRow(
+                          align = "center",
+                          br(),
+                          br(),
+                          h4("Mutual information entre variável e rótulo (indicador de doença)"),
+                          DTOutput("entropy")
                         )
                       ),
                       tabPanel(
@@ -223,40 +225,37 @@ ui <- fluidPage(
                       ) 
                   )                    
              ),
-             tabPanel("Técnicas empregadas",
-                        # tabPanel("CEP",
-                                 navlistPanel(
-                                   "Classificador",
-                                   tabPanel("KNN",
-                                            sidebarLayout(
-                                              sidebarPanel(
-                                                width = 3,
-                                                title = "Configurações"
-                                                
-                                                
-                                              ),
-                                              mainPanel(
-                                                
-                                                width = 9,
-                                              )
-                                              
-                                            )
-                                   ),
-                                   tabPanel("Random Forest"),
-                                   tabPanel("Regressão logística",
-                                            h3("This is the second panel")
-                                   ),
-                                   tabPanel("LDA",
-                                            h3("This is the third panel")
-                                   ),
-                                   tabPanel("SVM"),
-                                   widths = c(2, 10)
-                                 )
-                        ),
-                        tabPanel("Comparação")
-             )
-             
-  # )
+             tabPanel("Técnicas empregadas",                      
+                navlistPanel(
+                  "Classificador",
+                  tabPanel("KNN",
+                          sidebarLayout(
+                            sidebarPanel(
+                              width = 3,
+                              title = "Configurações"
+                              
+                              
+                            ),
+                            mainPanel(
+                              
+                              width = 9,
+                            )
+                            
+                          )
+                  ),
+                  tabPanel("Random Forest"),
+                  tabPanel("Regressão logística",
+                          h3("This is the second panel")
+                  ),
+                  tabPanel("LDA",
+                          h3("This is the third panel")
+                  ),
+                  tabPanel("SVM"),
+                  widths = c(2, 10)
+                )
+             ),
+             tabPanel("Comparação")
+             )             
 )
 
 
@@ -328,6 +327,18 @@ server<- function(input, output, session) {
         q[3], "e", q[4], "anos. E o mediano é maior que pacientes saudáveis."
         )
       )
+    }else if (input$var == "cp") {
+       return(
+         "Curiosamente, pacientes assintomáticos quanto a dor peitoral demonstraram maior proporção de doentes do que os que apresentaram dores."
+       )
+    }else if (input$var == "exang") {
+       return(
+         "Considerando a realização de exercícios, no entanto, os pacientes que tiveram dores eram, em sua maioria, portadores de doenças cardíacas."
+       )
+    }else if (input$var == "ca") {
+       return(
+         "Quanto maior o número de vasos colorizados no exame, maior a proporção de pacientes portadores de doenças."
+       )
     }
     
   })
@@ -367,6 +378,7 @@ server<- function(input, output, session) {
   
   output$plot_3 <- renderPlot({
     fator = input$fator
+    
     tit = switch(fator,
       "sex" = "gênero",
       "cp" = "tipo de dor no peito", 
@@ -377,20 +389,31 @@ server<- function(input, output, session) {
       "ca" = "número de vasos sanguíneos colorizados por fluoroscopia", 
       "thal" = "talassemia"
     )
-    heart %>%
+    p = heart %>%
       group_by(eval(as.name(fator))) %>%
       count(condition) %>%
       rename(fator = `eval(as.name(fator))`) %>%
       mutate(fator = factor(fator), condition = factor(condition)) %>%
       ggplot(aes(x = fator, y = n, fill = condition, label = n)) + 
-      geom_bar(stat = "identity", position = "dodge") +
       scale_fill_manual(values=c("#0073C2FF", "#EFC000FF")) +
-      geom_text(size = 5, position = position_dodge(width = 1), vjust = -0.5, colour = "black") +
       labs( 
         title = paste("Número de pacientes doentes por", tit),
         x = fator,
         y = "",
-        fill = "Doença")
+        fill = "Doença") 
+    
+    if(input$stack){
+      return(
+        p + geom_bar(stat = "identity") +
+        geom_text(size = 5, position = position_stack(vjust = 0.5), colour = "black") 
+      )
+    }else{
+      return(
+        p + geom_bar(stat = "identity", position = "dodge") +
+        geom_text(size = 5, position = position_dodge(width = 1), vjust = -0.5, colour = "black")  
+      )
+    }     
+      
   })
 
   output$text_plot_3 <- renderText({
@@ -404,6 +427,14 @@ server<- function(input, output, session) {
     }
     
   })
+
+  output$entropy <- renderDT({
+    datatable(
+      round(entropy, 4), option = list(dom = "t"), rownames = FALSE
+    )
+    
+  })
+
   output$table <- DT::renderDataTable({
     DT::datatable(cars)
   })
