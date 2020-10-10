@@ -23,6 +23,7 @@ X <-  heart[,-14]
 
 summary(factor(Y))
 
+
 # Continous variables -----------------------------------------------------
 
 # cor(heart[cont_names]) %>%
@@ -67,13 +68,12 @@ for(i in 1:5){
            fill = "Doença") 
     
     x = pull(heart, cont_names[i])
-    pValue[i] = wilcox.test(x ~ Y)$p.value  # Teste nao parametrico igualdade de mediana
-    
+    pValue[i] = wilcox.test(x ~ Y)$p.value  # Teste nao parametrico igualdade de mediana    
       
 }
 
 names(pValue) = cont_names
-pValue < 0.01
+pValue < 0.05
 
 ## Escolher um: Histogram (densidade) ou boxplot
 map2(heart[cont_names], cont_names,
@@ -81,9 +81,6 @@ map2(heart[cont_names], cont_names,
       geom_boxplot() +
       labs(x = "", y = .y, fill = "Doença")
 )
-  
-
-
 
 p2 = map(2:5, 
      ~ ggplot(heart[cont_names], aes(x = heart[cont_names][[1]], y = heart[cont_names][[.x]])) +
@@ -95,13 +92,6 @@ p2 = map(2:5,
         y = cont_names[[.x]]
       )
 )
-
-ggplot(heart[c(cont_names, "condition")], aes(x = age, y = thalach)) +
-  geom_point(aes(color = as.factor(heart$condition)), size = 2) +
-  theme(legend.position = "none") +
-  facet_grid(. ~condition) 
-
-
 
 
 #Categorical variables ---------------------------------------------------
