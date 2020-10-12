@@ -7,6 +7,7 @@ Esta pasta contem os seguintes arquivos:
 
 Para gerar o dashboard interativo :
 - Abrir o arquivo "app.R".
+- Checar se tem os pacotes instalados, consulta a lista.
 - Se for abrir no RStudio, clique no botão "Run App" localizado no canto superior do script.
 - Se for abrir no VScode, em ambiente R, roda o comando "shiny::runApp()".
 
