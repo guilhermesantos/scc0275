@@ -1,5 +1,3 @@
-library(markdown)
-library(shiny)
 pack <- c(
   "shiny", 
   "shinydashboard", 
@@ -8,12 +6,19 @@ pack <- c(
   "shinyBS",
   "shinycssloaders", 
   "DT",
-  "tidyverse"
+  "tidyverse",
+  "tidymodels",
+  "MASS",
+  "dismo",
+  "infotheo",
+  "GGally",
+  "glmnet"
  )
 
 lapply(pack, FUN = function(pack){do.call("library", list(pack)) })
-
+options(spinner.type = 4, spinner.size = 0.7)
 source('aed.R', encoding = 'UTF-8')
+source('heart.R', encoding = 'UTF-8')
 
 ui <- fluidPage(
   shinyBS:::shinyBSDep,
@@ -36,8 +41,7 @@ ui <- fluidPage(
                                    collapsible = FALSE,
                                    closable = FALSE,
                                    width = 4,
-                                   "Some text here!",
-                                   footer = "The footer here!"
+                                   "guilherme.milan.santos@usp.br"
                                  ),
                                  widgetUserBox(
                                    title = "Rafael Marques",
@@ -48,7 +52,7 @@ ui <- fluidPage(
                                    collapsible = FALSE,
                                    closable = FALSE,
                                    width = 4,
-                                   "Some text here!",
+                                   "rafael.polakiewicz@usp.br",
                                    footer = "The footer here!"
                                  ),
                                  widgetUserBox(
@@ -60,16 +64,24 @@ ui <- fluidPage(
                                    collapsible = FALSE,
                                    closable = FALSE,
                                    width = 4,
-                                   "tehledred@usp.br"
-                                   # footer = "The footer here!"
+                                   "tehledred@usp.br", br(),
+                                  footer = "4º ano do curso de Estatística"
                                  )
                                  )
                         ),
                         tabPanel("Projeto",
-                                 h3("This is the second panel")
+                                 h3("Projeto"),
+                                 p("Este trabalho faz parte da disciplina da SCC0275 Introdução à Ciência de Dados oferecida pelo Instituto de Ciências Matemáticas e de Computação da USP São Carlos, as aulas foram
+                                 ministradas pelo Professor Rodrigo Mello no segundo semestre de 2020."),
+                                 p("Foi escolhido o conjunto de dados da doença cardíarca proveniente do", 
+                                    a("Kaggle", href = "https://www.kaggle.com/ronitf/heart-disease-uci"), 
+                                  "no qual tem o objetivo de construir um modelo classificador que identifica se um indíviduo é portador ou não de doença cardíarca a partir de informações dos fatores relevantes.
+                                   A equipe faz exploração de algumas técnicas de modelagem comunmente aplicadas ao problema classificador e tenta otimizar os desempenhos dos algoritmos refinando parâmetros envolvidos.    
+                                  "
+                                 )
                         ),
                         tabPanel("Dataset",
-                                 h3("Descrição de variáveis"),
+                                h3("Descrição de variáveis"),
                                  p(strong("age:"), "idade do paciente;"),
                                  p(strong("sex:"),
                                    "gênero do paciente.",
@@ -110,7 +122,7 @@ ui <- fluidPage(
                                  ),
                                  p(strong("slope:"),
                                    "A inclinação do segmento ST do eletrocardiograma durante a realização de execícios físicos intensos.",
-                                   span("1: crescente, 2: plano, 3: decrescente.", style = "color:red")
+                                   span("0: crescente, 1: plano, 2: decrescente.", style = "color:red")
                                  ),
                                  p(strong("ca:"),
                                    "Número de vasos sanguíneos colorizados por fluoroscopia.",
@@ -119,9 +131,12 @@ ui <- fluidPage(
                                  ),
                                  p(strong("thal:"),
                                    "variável categórica significando o status quanto à doença denominada talassemia, que provoca a redução da quantidade de hemoglobina em circulação no sangue.",
-                                   span("3: normal, 6: defeito fixo, 7: defeito reversível.", style = "color:red")
-                                 )
-                        
+                                   span("0: normal, 1: defeito fixo, 2: defeito reversível.", style = "color:red")
+                                 ),
+                                 br(),                                
+                                h3("Conjunto de Dados"),
+                                 DTOutput("dados"),
+                                br()                       
                         )
                       )
              ),
@@ -139,23 +154,26 @@ ui <- fluidPage(
                                           label = "Selecione o Fator",
                                           choices = factors_names
                               ),
-                              checkboxInput("stack", "Stack", value = FALSE)
-                              
+                              checkboxInput("stack", "Empilhar", value = FALSE),
+                              br(),
+                              h4("Tabela de contingência"),
+                              tableOutput("crossTable")                              
                             ),
                             mainPanel(
                               width = 9,
                               plotOutput("plot_3", height = 650) %>% withSpinner,
+                              br(),
                               textOutput("text_plot_3")                            
                             )
                           )
-                        ),
-                        fluidRow(
-                          align = "center",
-                          br(),
-                          br(),
-                          h4("Mutual information entre variável e rótulo (indicador de doença)"),
-                          DTOutput("entropy")
                         )
+                        # fluidRow(
+                        #   align = "center",
+                        #   br(),
+                        #   br(),
+                        #   h4("Mutual information entre variável e rótulo (indicador de doença)"),
+                        #   DTOutput("entropy")
+                        # )
                       ),
                       tabPanel(
                         "Variáveis Contínuas",
@@ -186,7 +204,7 @@ ui <- fluidPage(
                                   choices = c("Média" = 1, "Mediana" = 2), 
                                   selected = 1
                                 )
-                              )                            
+                              )                           
                             ),
                             mainPanel(
                               width = 9,
@@ -216,7 +234,9 @@ ui <- fluidPage(
                             ),
                             mainPanel(
                               width = 9,
-                              plotOutput("plot_2", height = 650) %>% withSpinner
+                              plotOutput("plot_2", height = 650) %>% withSpinner,
+                              br(), br()
+                              
                             )
                           )
                           
@@ -225,50 +245,227 @@ ui <- fluidPage(
                       ) 
                   )                    
              ),
-             tabPanel("Técnicas empregadas",                      
-                navlistPanel(
-                  "Classificador",
-                  tabPanel("KNN",
-                          sidebarLayout(
-                            sidebarPanel(
-                              width = 3,
-                              title = "Configurações"
+             tabPanel("Técnicas empregadas",  
+                fluidRow(
+                  p("A seguir aplicamos algumas técnicas diferentes de modelagem nos dados e estudamos a precisão média que cada técnica alcança por meio da validação cruzada de método", em("10-fold."), 
+                  "Compara-se os resultados da modelagem com dois tipos de pré-processamento de dados - o primeiro recebe o tratamento onde todas as variáveis explicativas foram normalizadas e 
+                  o outro tem as variáveis contínuas normalizados e as variáveis categóricas foram tratadas como variáveis", em("dummy.")),
+                  p("Obs:", span("Leva-se em média 3 minutos para implementar todos os algoritmos.", style = "color:red")),
+                  column(
+                    6, 
+                    h3("1º Pre-processamento"),
+                    DTOutput("acc_scaled") %>% withSpinner(),
+                    br(),
+                    plotOutput("acc_scaled_p") %>% withSpinner()
+                  ),
+                  column(
+                    6, 
+                    h3("2º Pre-processamento"),
+                    DTOutput("acc_scaled_dummy") %>% withSpinner(),
+                    br(),
+                    plotOutput("acc_scaled_dummy_p") %>% withSpinner()
+                  )
+                )                    
+              # navlistPanel(
+                #   "Classificador",
+                #   tabPanel("KNN",
+                #           sidebarLayout(
+                #             sidebarPanel(
+                #               width = 3,
+                #               title = "Configurações"
                               
                               
-                            ),
-                            mainPanel(
-                              
-                              width = 9,
-                            )
+                #             ),
+                #             mainPanel(                             
+                #               width = 9,
+                #             )
                             
-                          )
-                  ),
-                  tabPanel("Random Forest"),
-                  tabPanel("Regressão logística",
-                          h3("This is the second panel")
-                  ),
-                  tabPanel("LDA",
-                          h3("This is the third panel")
-                  ),
-                  tabPanel("SVM"),
-                  widths = c(2, 10)
-                )
+                #           )
+                #   ),
+                #   tabPanel("Random Forest"),
+                #   tabPanel("Regressão logística",
+                #           h3("This is the second panel")
+                #   ),
+                #   tabPanel("LDA",
+                #           h3("This is the third panel")
+                #   ),
+                #   tabPanel("SVM"),
+                #   widths = c(2, 10)
+                # )
              ),
-             tabPanel("Comparação")
+             tabPanel("Comparação",
+              p("Comparemos os resultados das técnicas de modelagem por meio da curva de ROC, matriz de confusão e as métricas acurácia - acurácia e coeficiente kappa. 
+                As modelagens foram realizadas atráves da amostragem", em("Hold-one-out.")),
+              fluidRow(
+                  sidebarLayout(
+                      sidebarPanel(
+                          width = 2,
+                          h4("Opções"),
+                          selectInput("tipo_preprocessamento", "Tipo de pré-processamento", choices = c(1:2)),
+                          numericInput("split", "Tamanho de conjunto de treino", min = 0.5, max = 0.9, step = 0.05, value = 0.7),
+                          numericInput("threshold", "Threshold", value = 0.5, step = 0.1)                              
+                      ),
+                      mainPanel(
+                          width = 10,
+                          fluidRow(
+                            column(4, performanceUI("knn")),
+                            column(4, performanceUI("glm")),
+                            column(4, performanceUI("lda"))
+                          )
+                          # fluidRow(
+                          #         column(4, plotOutput("roc_knn")),
+                          #         column(4, plotOutput("roc_glm")),
+                          #         column(4, plotOutput("roc_lda"))              
+                          # ),
+                          # fluidRow(
+                          #     column(4, plotOutput("confMat_knn")),
+                          #     column(4, plotOutput("confMat_glm")),
+                          #     column(4, plotOutput("confMat_lda"))
+                          # ),
+                          # fluidRow(
+                          #     column(4, tableOutput("metric_knn")),
+                          #     column(4, tableOutput("metric_glm")),
+                          #     column(4, tableOutput("metric_lda"))
+                          # )                           
+                      )
+                  )
+              )
+             ),
+             tabPanel("Modelo Preditivo",
+              p("Pretendo aplicar elastic net via glmnet, mostrar modelo glm por facilidade de interpretação.")
              )             
+  )
 )
 
 
 server<- function(input, output, session) {
 
-# Variáveis Contínuas ----
+# Comparação -------------------------------------------------------------------
+
+  res_Compare <- reactive({
+    if(input$tipo_preprocessamento == 1){
+      res = run_HoldOut(data = as.data.frame.matrix(data_scaled), prop = input$split, threshold = input$threshold)
+    }else{
+      res = run_HoldOut(data = data_scaled_dummy, categorize = TRUE, prop = input$split, threshold = input$threshold)
+    }
+
+    return(res)
+  })
+
+  performanceServer("knn", res_Compare, method = "knn", titleforROC = "9-nn")
+  performanceServer("glm", res_Compare, method = "glm", titleforROC = "Regressão Logística")
+  performanceServer("lda", res_Compare, method = "lda", titleforROC = "LDA")
+
+  # output$roc_knn <- renderPlot({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "knn", 
+  #     titleforPlot = "9-nn"
+  #   )$roc
+  # })
+
+  # output$roc_glm <- renderPlot({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "glm", 
+  #     titleforPlot = "Regressão Logística"
+  #   )$roc
+  # })
+
+  # output$roc_lda <- renderPlot({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "lda", 
+  #     titleforPlot = "LDA"
+  #   )$roc
+  # })
+
+  # output$confMat_knn <- renderPlot({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "knn", 
+  #     titleforPlot = "9-nn"
+  #   )$confMat_plot
+  # })
+
+  # output$confMat_glm <- renderPlot({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "glm", 
+  #     titleforPlot = "Regressão Logística"
+  #   )$confMat_plot
+  # })
+
+  # output$confMat_lda <- renderPlot({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "lda", 
+  #     titleforPlot = "LDA"
+  #   )$confMat_plot
+  # })
+
+  # output$metric_knn <- renderTable({
+  #   run_ROC(
+  #     dataframe = res_Compare()$test, 
+  #     method = "knn", 
+  #     titleforPlot = "9-nn"
+  # )$metric    
+  # })
+
+# Técnicas empregadas ----------------------------------------------------------
+  acc_results <- reactive({
+    scaled <- run_CV(data_scaled)
+    scaled_dummy <- run_CV(data_scaled_dummy, categorize = TRUE)
+    return(list(scaled = scaled, scaled_dummy = scaled_dummy))
+  })
+
+  output$acc_scaled <- renderDT({
+    datatable(
+      round(acc_results()$scaled$tab, 4), 
+      options = list(
+        dom = "t",  pageLength = 15, autoWidth = TRUE,
+        columnDefs = list(list(className = 'dt-center', targets = "_all"))
+      )
+    )
+  })
+
+  output$acc_scaled_p <- renderPlot({
+    acc_results()$scaled$plot
+  })
+
+  output$acc_scaled_dummy <- renderDT({
+    datatable(
+      round(acc_results()$scaled_dummy$tab, 4), 
+      options = list(
+        dom = "t",  pageLength = 15, autoWidth = TRUE,
+        columnDefs = list(list(className = 'dt-center', targets = "_all"))
+      )
+    )
+  })
+
+  output$acc_scaled_dummy_p <- renderPlot({
+    acc_results()$scaled_dummy$plot
+  })
+
+# Dataset ----------------------------------------------------------------------
+  output$dados <- renderDT({
+    dados = heart %>% mutate_at(c(factors_names, "condition"), ~factor(.))
+    datatable(
+      dados, rownames = FALSE, filter = "top",
+      options = list(dom = "tip", scrollX = TRUE, autoWidth = TRUE,
+      columnDefs = list(list(width = '80px', className = 'dt-center', targets = "_all"))
+      )
+    )
+  })
+
+# Variáveis Contínuas ----------------------------------------------------------
   output$plot_1 <- renderPlot({
     var = pull(heart, input$var)
     mean = unlist(resumo[[input$var]][2])
     median = unlist(resumo[[input$var]][3])
     if(input$marca_media == 1) m = mean else m = median
     
-    # Gráfico de boxplot -----
+    # Gráfico de boxplot 
     if(input$plotType == 1){
       
       ggplot(heart[cont_names], 
@@ -278,9 +475,8 @@ server<- function(input, output, session) {
         scale_fill_manual(values=c("#0073C2FF", "#EFC000FF")) +
         labs(x = "", y = input$var, fill = "Doença") 
   
-    # Gráfico de Densidade estimada ---- 
-    }else if(input$plotType == 2){
-      
+    # Gráfico de Densidade estimada  
+    }else if(input$plotType == 2){      
       
       ggplot(heart, aes(x = var, fill = factor(condition, labels=c("Negativo","Positivo")))) +
         geom_density (alpha = 0.7, color = "white") +
@@ -320,7 +516,7 @@ server<- function(input, output, session) {
       return(
         paste(
         "Com relação à idade, há maior número de pacientes doentes entre aproximadamente",
-        q[3], "e", q[4], "anos. E o mediano é maior que pacientes saudáveis."
+        q[3], "e", q[4], "anos. E o mediano da idade do grupo de pacientes doentes é maior."
         )
       )
     }else if (input$var == "cp") {
@@ -345,12 +541,13 @@ server<- function(input, output, session) {
       vary = input$y
       x = pull(heart, varx)
       y = pull(heart, vary)
-      
+      # facet = input$facet_fator      
       
       plot = ggplot(heart, aes(x = x, y = y)) +
         geom_point(aes(color = as.factor(condition)), size = 3) +
         theme(legend.position = "none") +
         scale_color_manual(values=c("#0073C2FF", "#EFC000FF")) 
+        # facet_wrap(~get(facet))
       
       # Separar por classe
       if(!input$facet){
@@ -372,8 +569,18 @@ server<- function(input, output, session) {
          
   })
   
-# Variáveis Categóricas ---- 
+# Variáveis Categóricas --------------------------------------------------------
   
+  # Tabela cruzada
+  output$crossTable <- renderTable({
+    fator = pull(heart, input$fator)
+    tab = table(fator, Y) %>% as.data.frame.matrix()  
+    colnames(tab) = c("Negativo", "Positivo")  
+    tab[, "Soma"] = rowSums(tab) %>% as.integer()
+    tab["Soma",] = colSums(tab)%>% as.integer()     
+    return(tab)    
+  }, align = "c", rownames = TRUE)
+
   # Gráfico de barra ----
   output$plot_3 <- renderPlot({
     fator = input$fator
@@ -392,7 +599,7 @@ server<- function(input, output, session) {
       group_by(eval(as.name(fator))) %>%
       count(condition) %>%
       rename(fator = `eval(as.name(fator))`) %>%
-      mutate(fator = factor(fator), condition = factor(condition)) %>%
+      mutate(fator = factor(fator), condition = factor(condition, labels = c("Negativo", "Positivo"))) %>%
       ggplot(aes(x = fator, y = n, fill = condition, label = n)) + 
       scale_fill_manual(values=c("#0073C2FF", "#EFC000FF")) +
       labs( 
@@ -417,22 +624,42 @@ server<- function(input, output, session) {
 
   output$text_plot_3 <- renderText({
     fator = input$fator
-    if(fator == "sex"){
+    if(fator == "sex")
       return(
-       "Note-se que uma proporção maior de homens apresenta doença diante do total de pacientes daquele gênero, 
-        enquanto no sexo feminino há mais pacientes saudáveis do que doentes."
+       "Note-se que uma proporção maior de homens (1) apresenta doença diante do total de pacientes daquele gênero, 
+        enquanto no sexo feminino (0) há mais pacientes saudáveis do que doentes."
+      )      
+    if(fator == "cp")
+      return(
+        "Curiosamente, pacientes assintomáticos (3) quanto a dor peitoral demonstraram maior proporção de doentes do que os que apresentaram dores (0, 1 e 2)."
       )
-      
-    }
-    
+    if(fator == "restecg")
+      return(
+        "Percebe-se que há uma proporção maior de doentes em grupos que apresentaram anormalidade (1 e 2) no exame de eletrocardiograma em comparação do grupo normal (0)."
+      )
+    if(fator == "exang")
+      return(
+        "Foi observado para grupo que ocorreu angina quando praticar exercício (1) número maior de casos positivos."
+      )
+    if(fator == "slope")
+      return(
+        "Existe maior proporção dos pacientes doentes no grupo que tem nível plano no segmento ST (1) do eletrocardiograma durante a realização de execícios físicos intensos."
+      )
+    if(fator == "ca")
+      return(
+        "É notável que quanto maior o número de vasos colorizados no exame fluoroscopico, maior a proporção de pacientes portadores de doenças."
+      )
+    if(fator == "thal")
+    return(
+      "Os grupos que sofrem do distúrbio sanguíneo (1 e 2) têm manifestados mais que 60% dos casos positivos em comparação do grupo normal (0). "
+    )
   })
 
-  output$entropy <- renderDT({
-    datatable(
-      round(entropy, 4), option = list(dom = "t"), rownames = FALSE
-    )
-    
-  })
+  # output$entropy <- renderDT({
+  #   datatable(
+  #     round(entropy, 4), option = list(dom = "t"), rownames = FALSE
+  #   )    
+  # })
 
   output$table <- DT::renderDataTable({
     DT::datatable(cars)
