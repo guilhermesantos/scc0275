@@ -1,8 +1,3 @@
-library(tidyverse)
-library(GGally)
-library(shiny)
-library(infotheo)
-
 theme_set(theme_light())
 theme_update(
   plot.title = element_text(size=16, face="bold"),
@@ -13,7 +8,6 @@ theme_update(
 heart<- read_csv("heart_cleveland.csv")
 
 glimpse(heart)
-
 
 Y <-  pull(heart, condition)
 factors_names <-  c("sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal")
@@ -78,7 +72,7 @@ pValue < 0.05
 ## Escolher um: Histogram (densidade) ou boxplot
 map2(heart[cont_names], cont_names,
     ~ggplot(heart[cont_names], aes(x = factor(Y, labels=c("Negativo","Positivo")), y = .x, fill = factor(Y, labels=c("Negativo","Positivo"))))  +
-      geom_boxplot() +
+      geom_boxplot() +       
       labs(x = "", y = .y, fill = "Doença")
 )
 
@@ -91,8 +85,7 @@ p2 = map(2:5,
         x = cont_names[1],
         y = cont_names[[.x]]
       )
-)
-
+)   
 
 #Categorical variables ---------------------------------------------------
 
@@ -101,6 +94,7 @@ summary(heart %>%
     select_if(is.factor)
     )  #----> nenhum fator possui nivel unico
 
+ 
 
 p3 = map(factors_names, 
   ~heart %>%
@@ -112,8 +106,6 @@ p3 = map(factors_names,
     geom_text(size = 3, position = position_stack(vjust = 0.5), colour = "white") +
     labs(title = paste(.x, "em Doença"), x = "Doença", y = "", fill = .x)
 )
-
-
 
 p4 = map(factors_names,
          ~ heart %>%
@@ -130,22 +122,8 @@ p4 = map(factors_names,
                  fill = "Doença")
 )
 
-p5 = c(p3, p4)
-  
+p5 = c(p3, p4)  
 
 entropy = map_dfc(heart[factors_names],
      ~ mutinformation(.x, Y)
 )
-
-cont_discretized <- discretize(X[cont_names], nbins=3)
-
-map_dfc(cont_discretized[cont_names],
-        ~ mutinformation(.x, Y)
-)
-
-
-glm = glm(condition ~., data = heart)%>%
-  summary() %>% .$coefficients
-
-names(which(glm[,4] < 0.1))
-
