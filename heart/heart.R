@@ -369,12 +369,12 @@ performanceUI <-  function(id) {
   ns <- NS(id)
 
   tagList(
-    plotOutput(ns("roc_curve")),
-    plotOutput(ns("confusion_matrix")),
+    plotOutput(ns("roc_curve")) %>% withSpinner(),
+    plotOutput(ns("confusion_matrix")) %>% withSpinner(),
     h3("Treino"),
-    DTOutput(ns("metric_train")),
+    DTOutput(ns("metric_train")) %>% withSpinner(),
     h3("Teste"),
-    DTOutput(ns("metric_test"))
+    DTOutput(ns("metric_test")) %>% withSpinner()
   )
   
 }
