@@ -10,6 +10,7 @@ Para gerar o dashboard interativo :
 - Se for abrir no RStudio, clique no botão "Run App" localizado no canto superior do script.
 - Se for abrir no VScode, em ambiente R, roda o comando "shiny::runApp()".
 
+### Descrição de dados
 ![tab1](www/tab1.png)
 ![tab2](www/tab2.png)
 ![tab3](www/tab3.png)
