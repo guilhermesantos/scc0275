@@ -12,6 +12,12 @@ Para gerar o dashboard interativo :
 
 ### Descrição de dados
 ![tab1](www/tab1.png)
+
+### Exemplo de AED
 ![tab2](www/tab2.png)
+
+### Implementação de algoritmo
 ![tab3](www/tab3.png)
+
+### Comparação de performance
 ![tab4](www/tab4.png)
