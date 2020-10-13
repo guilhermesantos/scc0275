@@ -1,3 +1,5 @@
+options(yardstick.event_first = FALSE)
+
 X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})  
 X_scaled_dummy = X %>% mutate_at(vars(cont_names), ~(. - mean(.))/sd(.))
 data_scaled = cbind(X_scaled, Y)
@@ -316,7 +318,7 @@ run_ROC <- function(dataframe, titleforPlot = NULL, method){
 
   dataframe = dataframe %>% mutate_at(vars("truth", contains("predicted")), as.factor)  
   
-  colClass = paste0("Class1_", method)
+  colClass = paste0("Class2_", method)
   aux = dataframe%>%
     roc_auc(truth, colClass) 
   auc = as.numeric(aux[,3]) 
