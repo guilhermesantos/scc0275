@@ -1,4 +1,4 @@
-options(yardstick.event_first = FALSE)
+
 
 X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})  
 X_scaled_dummy = X %>% mutate_at(vars(cont_names), ~(. - mean(.))/sd(.))
@@ -7,10 +7,6 @@ data_scaled_dummy = cbind(X_scaled_dummy, Y)
 
 # 10-Fold Cross Validation -----------------------------------------------------
 
-# ggplot(data = data.frame(data_scaled), aes(x = ldaPred$x, fill = factor(Y))) +
-#   geom_histogram(aes(y = stat(density)), color = "white", bins = 50) +
-#   scale_fill_manual(values=c("#0073C2FF", "#EFC000FF")) +
-#   facet_grid(factor(Y, labels = c("Negativo", "Positivo"))~ . ) 
 
 # Functions --------------------------------------------------------------------
 
@@ -168,7 +164,7 @@ run_logito <- function(X.folds, Y.folds, threshold = 0.5){
   )
 }
 
-# Implent Linear Discriminant Analysis -----------------------------------------
+# Implement Linear Discriminant Analysis -----------------------------------------
 run_lda <- function(X.folds, Y.folds, threshold = 0.5){
   
   k_fold = length(X.folds)
@@ -221,6 +217,66 @@ run_lda <- function(X.folds, Y.folds, threshold = 0.5){
   )
 }
 
+# Implement random forest
+run_rf <- function(X.folds, Y.folds){
+  
+  k_fold = length(X.folds)
+  acc_train = acc_test = c()
+  df = NULL
+
+  for (i in 1:k_fold) {
+    X.train = NULL
+    Y.train = c()
+
+    # Treinar com todos os folds exceto o fold i
+    for (j in setdiff(1:k_fold, i)) {
+      X.train = rbind(X.train, X.folds[[j]]) 
+      Y.train = c(Y.train, Y.folds[[j]]) 
+    }
+
+    dados_train = data.frame(X.train, condition = factor(Y.train))
+    
+    fit = randomForest(condition ~., data = dados_train, mtry = 6) 
+    
+    acc_train[i] = mean(predict(fit) == dados_train[, "condition"])
+
+       
+    # levels(dados_test$age) =  levels(dados_test$trestbps)  =  levels(dados_test$chol) = levels(dados_test$thalach) = levels(dados_test$oldpeak) = 0
+    # Testar com o fold = i
+    dados_test = data.frame(X.folds[[i]], condition = factor(Y.folds[[i]]))
+    levels(dados_test$cp) = fit$forest$xlevels$cp
+    levels(dados_test$restecg) = fit$forest$xlevels$restecg
+    levels(dados_test$slope) = fit$forest$xlevels$slope
+    levels(dados_test$ca) = fit$forest$xlevels$ca
+    levels(dados_test$thal) = fit$forest$xlevels$thal
+
+    fitted_prob = predict(fit, newdata = dados_test[,-14], type = "prob")
+    yhat_test = predict(fit, newdata = dados_test)
+    acc_test[i] = mean(yhat_test == dados_test[,"condition"])   
+
+    temp = data.frame(
+        truth = factor(Y.folds[[i]]), Class1 = fitted_prob[,1], Class2 = fitted_prob[,2],
+        predicted = yhat_test, fold = i
+    )
+    
+    df = rbind(df, temp)
+    
+  }
+
+  return(
+    list(
+    fit = fit,
+    df = df,
+    acc_train = acc_train, 
+    acc_test = acc_test,
+    mean_acc_train = mean(acc_train),
+    sd_acc_train = sd(acc_train),
+    mean_acc_test = mean(acc_test),
+    sd_acc_test = sd(acc_test)
+    )
+  )
+}
+
 # 10-Fold Cross Validation -----------------------------------------------------
 run_CV <- function(data, categorize = FALSE){    
 
@@ -228,8 +284,8 @@ run_CV <- function(data, categorize = FALSE){
     X.folds = folds$X.folds
     Y.folds = folds$Y.folds
 
-    tab_10fold = matrix(0, 12, 4)
-    rownames(tab_10fold) = c(paste0(1:10, "-nn"), "Regressão Logística", "LDA")
+    tab_10fold = matrix(0, 13, 4)
+    rownames(tab_10fold) = c(paste0(1:10, "-nn"), "Regressão Logística", "LDA", "Random forest")
     colnames(tab_10fold) = c("Precisão média (treino)", "Desvio padrão (treino)", "Precisão média (teste)", "Desvio padrão (teste)")
 
     for(i in 1:10){
@@ -242,21 +298,22 @@ run_CV <- function(data, categorize = FALSE){
     
     logito_res = run_logito(X.folds, Y.folds, threshold = 0.5)  
     lda_res = run_lda(X.folds, Y.folds, threshold = 0.5)  
-    
+    rf_res = run_rf(X.folds, Y.folds)
+
     tab_10fold["Regressão Logística",] = unlist(logito_res[5:8]) %>% as.numeric() 
     tab_10fold["LDA",] = unlist(lda_res[5:8]) %>% as.numeric() 
-
+    tab_10fold["Random forest",] = unlist(rf_res[5:8]) %>% as.numeric()
 
     dat = as.data.frame(tab_10fold) 
 
-    plot = ggplot(dat, aes(x = 1:12)) + 
+    plot = ggplot(dat, aes(x = 1:13)) + 
             geom_line(aes(y = dat[,1], color="Treino"), size = 1) +
             geom_line(aes(y = dat[,3], color="Teste"), size = 1) +
             labs(x = "", y = "Precisão média", color = "") +
             scale_color_manual(values = c(
                 'Treino' = 'blue',
                 'Teste' = 'orange')) + 
-            scale_x_continuous(breaks=1:12, labels= rownames(dat))  +
+            scale_x_continuous(breaks=1:13, labels= rownames(dat))  +
             theme(axis.text.x=element_text(angle = 45, hjust = 1))
 
     return(list(
@@ -280,12 +337,28 @@ run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
   }  
 
   if(categorize) train_data = train_data %>% mutate_at(factors_names, ~factor(.))
-  fit = glm(Y ~., family = binomial, data = train_data) 
-  yhat_train_glm = ifelse( fitted(fit)  > threshold, 1, 0)
+  glm = glm(Y ~., family = binomial, data = train_data) 
+  yhat_train_glm = ifelse( fitted(glm)  > threshold, 1, 0)
   lda = lda(Y ~., data = train_data) 
   yhat_train_lda = ifelse( predict(lda)$posterior[,2] > threshold, 1, 0)
-  train = data.frame(truth = train_data[,"Y"], predicted_knn= yhat_train_knn, predicted_glm = yhat_train_glm, predicted_lda = yhat_train_lda)
   
+  grid = expand.grid(mtry = 2:5, nodesize = 2:8)
+  # Tune for mtry
+  oob = c()
+  for(i in 1:25){
+    temp = randomForest(factor(Y) ~ ., data = train_data, mtry = grid[i, 1], nodesize = grid[i, 2]) 
+    oob[i] = temp$err.rate[nrow(temp$err.rate), 1]
+  }
+  param = grid[which(oob == min(oob)),]
+  print(paste0("best try: ", param))
+  rf = randomForest(factor(Y) ~ ., data = train_data,mtry = grid[1, 1], nodesize = grid[2, 2], importance = TRUE, proximity = TRUE) 
+  yhat_train_rf = predict(rf)
+ 
+  train = data.frame(truth = train_data[,"Y"], predicted_knn = yhat_train_knn, predicted_glm = yhat_train_glm, predicted_lda = yhat_train_lda, predicted_rf = yhat_train_rf)
+  train = train %>%
+    mutate_if(is.numeric, as.factor)
+  print(apply(map_df(train[,-1], ~train$truth == .x), 2, mean))
+
   yhat_test_knn = c()
   prob_knn = list()
   for (i in 1:nrow(test_data)) {
@@ -296,13 +369,26 @@ run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
   }
   
   if(categorize) test_data = test_data %>% mutate_at(factors_names, ~factor(.))
-  Class1_glm = predict(fit,test_data[,-14], type = "response") 
-  yhat_test_glm = ifelse( predict(fit,test_data[,-14], type = "response")  > threshold, 1, 0)
+  Class1_glm = predict(glm,test_data[,-14], type = "response") 
+  yhat_test_glm = ifelse( predict(glm,test_data[,-14], type = "response")  > threshold, 1, 0)
   lda_res = predict(lda, newdata = test_data)
   yhat_test_lda = ifelse( predict(lda, newdata = test_data)$posterior[,2] > threshold, 1, 0)
+
+  if("predicted_rf" %in% names(train) & categorize == TRUE){
+    test_data[factors_names] = test_data[factors_names] %>% mutate_if(is.numeric, as.factor)
+    levels(test_data$cp) = rf$forest$xlevels$cp
+    levels(test_data$restecg) = rf$forest$xlevels$restecg
+    levels(test_data$slope) = rf$forest$xlevels$slope
+    levels(test_data$ca) = rf$forest$xlevels$ca
+    levels(test_data$thal) = rf$forest$xlevels$thal
+  }
+ 
+  yhat_test_rf = predict(rf, newdata = test_data[,-14])
+  Class_rf = predict(rf, newdata = test_data[,-14], type = 'prob')
   test = data.frame(truth = test_data[,"Y"], Class1_knn = map_dbl(prob_knn, ~.[1]), Class2_knn = map_dbl(prob_knn, ~.[2]), predicted_knn= yhat_test_knn, 
                     Class1_glm = 1 - Class1_glm, Class2_glm = Class1_glm, predicted_glm = yhat_test_glm,
-                    Class1_lda = lda_res$posterior[,1], Class2_lda = lda_res$posterior[,2], predicted_lda = yhat_test_lda)
+                    Class1_lda = lda_res$posterior[,1], Class2_lda = lda_res$posterior[,2], predicted_lda = yhat_test_lda,
+                    Class1_rf = Class_rf[,1], Class2_rf = Class_rf[,2], predicted_rf = yhat_test_rf)
 
   return(
     list(
@@ -315,7 +401,7 @@ run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
 
 # Compute ROC and other metrics ------------------------------------------------
 run_ROC <- function(dataframe, titleforPlot = NULL, method){
-
+  options(yardstick.event_first = FALSE)
   dataframe = dataframe %>% mutate_at(vars("truth", contains("predicted")), as.factor)  
   
   colClass = paste0("Class2_", method)
@@ -330,17 +416,18 @@ run_ROC <- function(dataframe, titleforPlot = NULL, method){
     geom_abline(lty = 3) +
     coord_equal() +
     labs(x = "Taxa de Falsos Positivos", y = "Taxa de Verdadeiros Positivos", title = paste("Curva ROC", titleforPlot)) +
-    annotate("text", x = 0.90, y = 0, label = paste("AUC =", round(auc, 4)), colour = "orange", size = 8)
+    annotate("text", x = 0.80, y = 0, label = paste("AUC =", round(auc, 4)), colour = "orange", size = 8)
 
   aux1 = dataframe %>%
     select_at(vars("truth", ends_with(method)))
 
   var = sym(paste0("predicted_", method))
+  
   confMat = aux1 %>%
         conf_mat(truth, var)
   confMat_plot = autoplot(confMat, type = "heatmap") +
    ggplot2::scale_fill_gradient(low = "white", high = "blue") +
-   labs(x = "Observado", y = "Predito")
+   labs(x = "Verdadeiro", y = "Predito")
 
   metric = aux1 %>%
     metrics(truth, var)  
@@ -428,3 +515,26 @@ performanceServer <- function(id, results, method, titleforROC) {
 
   })
 }
+
+# distance.matrix <- as.dist(1-rf$proximity)
+
+# mds.stuff <- cmdscale(distance.matrix, eig=TRUE, x.ret=TRUE)
+
+# ## calculate the percentage of variation that each MDS axis accounts for...
+# mds.var.per <- round(mds.stuff$eig/sum(mds.stuff$eig)*100, 1)
+
+# ## now make a fancy looking plot that shows the MDS axes and the variation:
+# mds.values <- mds.stuff$points
+# mds.data <- data.frame(Sample=rownames(mds.values),
+#   X=mds.values[,1],
+#   Y=mds.values[,2],
+#   Status=train_data$Y)
+
+# ggplot(data=mds.data, aes(x=X, y=Y, label=Sample)) + 
+#   geom_text(aes(color=Status)) +
+#   theme_bw() +
+#   xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+#   ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+#   ggtitle("MDS plot using (1 - Random Forest Proximities)")
+
+# MDSplot(rf, factor(train_data$Y), k=2, palette=NULL, pch=4)

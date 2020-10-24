@@ -12,7 +12,9 @@ pack <- c(
   "dismo",
   "infotheo",
   "GGally",
-  "glmnet"
+  "glmnet",
+  "skimr",
+  "randomForest"
  )
 
 lapply(pack, FUN = function(pack){do.call("library", list(pack)) })
@@ -266,32 +268,6 @@ ui <- fluidPage(
                     plotOutput("acc_scaled_dummy_p") %>% withSpinner()
                   )
                 )                    
-              # navlistPanel(
-                #   "Classificador",
-                #   tabPanel("KNN",
-                #           sidebarLayout(
-                #             sidebarPanel(
-                #               width = 3,
-                #               title = "Configurações"
-                              
-                              
-                #             ),
-                #             mainPanel(                             
-                #               width = 9,
-                #             )
-                            
-                #           )
-                #   ),
-                #   tabPanel("Random Forest"),
-                #   tabPanel("Regressão logística",
-                #           h3("This is the second panel")
-                #   ),
-                #   tabPanel("LDA",
-                #           h3("This is the third panel")
-                #   ),
-                #   tabPanel("SVM"),
-                #   widths = c(2, 10)
-                # )
              ),
              tabPanel("Comparação",
               p("Comparemos os resultados das técnicas de modelagem por meio da curva de ROC, matriz de confusão e as métricas acurácia - acurácia e coeficiente kappa. 
@@ -299,34 +275,27 @@ ui <- fluidPage(
               fluidRow(
                   sidebarLayout(
                       sidebarPanel(
-                          width = 2,
+                          width = 12,
                           h4("Opções"),
-                          selectInput("tipo_preprocessamento", "Tipo de pré-processamento", choices = c(1:2)),
-                          numericInput("split", "Tamanho de conjunto de treino", min = 0.5, max = 0.9, step = 0.05, value = 0.7),
-                          numericInput("threshold", "Threshold", value = 0.5, step = 0.1)                              
+                          fluidRow(
+                            column(3, 
+                              selectInput("tipo_preprocessamento", "Tipo de pré-processamento", choices = c(1:2), width = "100%")
+                            ),
+                            column(3, 
+                              numericInput("split", "Tamanho de conjunto de treino", min = 0.5, max = 0.9, step = 0.05, value = 0.7, width = "100%")
+                            )
+                            # numericInput("threshold", "Threshold", value = 0.5, step = 0.1)      
+                          )                        
                       ),
                       mainPanel(
-                          width = 10,
+                          width = 12,
                           fluidRow(
-                            column(4, performanceUI("knn")),
-                            column(4, performanceUI("glm")),
-                            column(4, performanceUI("lda"))
+                            column(3, performanceUI("knn")),
+                            column(3, performanceUI("glm")),
+                            column(3, performanceUI("lda")),
+                            column(3, performanceUI("rf"))
                           )
-                          # fluidRow(
-                          #         column(4, plotOutput("roc_knn")),
-                          #         column(4, plotOutput("roc_glm")),
-                          #         column(4, plotOutput("roc_lda"))              
-                          # ),
-                          # fluidRow(
-                          #     column(4, plotOutput("confMat_knn")),
-                          #     column(4, plotOutput("confMat_glm")),
-                          #     column(4, plotOutput("confMat_lda"))
-                          # ),
-                          # fluidRow(
-                          #     column(4, tableOutput("metric_knn")),
-                          #     column(4, tableOutput("metric_glm")),
-                          #     column(4, tableOutput("metric_lda"))
-                          # )                           
+                                             
                       )
                   )
               )
@@ -344,9 +313,9 @@ server<- function(input, output, session) {
 
   res_Compare <- reactive({
     if(input$tipo_preprocessamento == 1){
-      res = run_HoldOut(data = as.data.frame.matrix(data_scaled), prop = input$split, threshold = input$threshold)
+      res = run_HoldOut(data = as.data.frame.matrix(data_scaled), prop = input$split)#, threshold = input$threshold)
     }else{
-      res = run_HoldOut(data = data_scaled_dummy, categorize = TRUE, prop = input$split, threshold = input$threshold)
+      res = run_HoldOut(data = data_scaled_dummy, categorize = TRUE, prop = input$split)#, threshold = input$threshold)
     }
 
     return(res)
@@ -355,62 +324,8 @@ server<- function(input, output, session) {
   performanceServer("knn", res_Compare, method = "knn", titleforROC = "9-nn")
   performanceServer("glm", res_Compare, method = "glm", titleforROC = "Regressão Logística")
   performanceServer("lda", res_Compare, method = "lda", titleforROC = "LDA")
-
-  # output$roc_knn <- renderPlot({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "knn", 
-  #     titleforPlot = "9-nn"
-  #   )$roc
-  # })
-
-  # output$roc_glm <- renderPlot({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "glm", 
-  #     titleforPlot = "Regressão Logística"
-  #   )$roc
-  # })
-
-  # output$roc_lda <- renderPlot({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "lda", 
-  #     titleforPlot = "LDA"
-  #   )$roc
-  # })
-
-  # output$confMat_knn <- renderPlot({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "knn", 
-  #     titleforPlot = "9-nn"
-  #   )$confMat_plot
-  # })
-
-  # output$confMat_glm <- renderPlot({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "glm", 
-  #     titleforPlot = "Regressão Logística"
-  #   )$confMat_plot
-  # })
-
-  # output$confMat_lda <- renderPlot({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "lda", 
-  #     titleforPlot = "LDA"
-  #   )$confMat_plot
-  # })
-
-  # output$metric_knn <- renderTable({
-  #   run_ROC(
-  #     dataframe = res_Compare()$test, 
-  #     method = "knn", 
-  #     titleforPlot = "9-nn"
-  # )$metric    
-  # })
+  performanceServer("rf", res_Compare, method = "rf", titleforROC = "Random Forest")
+  
 
 # Técnicas empregadas ----------------------------------------------------------
   acc_results <- reactive({
@@ -543,16 +458,16 @@ server<- function(input, output, session) {
       y = pull(heart, vary)
       # facet = input$facet_fator      
       
-      plot = ggplot(heart, aes(x = x, y = y)) +
-        geom_point(aes(color = as.factor(condition)), size = 3) +
+      plot = ggplot(heart, aes(x = x, y = y, color = as.factor(condition), group = as.factor(condition)))+
+        geom_point(size = 3) +
         theme(legend.position = "none") +
-        scale_color_manual(values=c("#0073C2FF", "#EFC000FF")) 
+        scale_colour_manual(values=c("#0073C2FF", "#EFC000FF")) 
         # facet_wrap(~get(facet))
       
       # Separar por classe
       if(!input$facet){
         return(plot +
-                 geom_smooth(method = "lm", se = FALSE, color = "grey") +
+                 geom_smooth(method = "lm", se = FALSE) +
                   labs(title = paste("Coeficiente de Pearson =", round(cor(x, y), 2), ",", 
                                       "Coeficiente de Spearman =", round(cor(x, y, method = "spearman"), 2)),
                       x = varx, y = vary) 
@@ -562,7 +477,7 @@ server<- function(input, output, session) {
       }else{
         return(plot +
                  facet_grid(. ~ factor(condition, labels = c("Negativo", "Positivo"))) +
-                 geom_smooth(method = "lm", se = FALSE, color = "darkgray") +
+                 geom_smooth(method = "lm", se = FALSE) +
                  labs(x = varx, y = vary)
         )
       }       
