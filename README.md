@@ -1,6 +1,6 @@
 Esta pasta contem os seguintes arquivos:
 
-1. **heart_clevalend.csv**: Conjunto de dados com dimensão 297 X 14.
+1. **heart_clevelend.csv**: Conjunto de dados com dimensão 297 X 14.
 2. **aed.R**: Rscript contem códigos de execução de análise exploratória.
 3. **heart.R**: Rscript contem códigos que executa algoritmo de modelagem.
 4. **app.R**: Arquivo shiny que produz dashboard.
@@ -26,7 +26,9 @@ pack <- c(
   "dismo",
   "infotheo",
   "GGally",
-  "glmnet"
+  "glmnet",
+  "skimr",
+  "randomForest"
  )
 
 ### Descrição de dados
@@ -40,3 +42,6 @@ pack <- c(
 
 ### Comparação de performance
 ![tab4](www/tab4.png)
+
+### Modelo preditivo
+![tab5](www/tab5.png)
