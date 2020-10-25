@@ -123,17 +123,21 @@ ui <- fluidPage(
                                    "indica a duração da depressão do segmento ST do sinal obtido pelo exame de eletrocardiograma. Uma depressão ou inclinação decrescente do segmento ST pode indicar a presença de doenças cardíacas associadas à redução da circulação sanguínea, como taquicardias."
                                  ),
                                  p(strong("slope:"),
-                                   "A inclinação do segmento ST do eletrocardiograma durante a realização de execícios físicos intensos.",
+                                   "a inclinação do segmento ST do eletrocardiograma durante a realização de execícios físicos intensos.",
                                    span("0: crescente, 1: plano, 2: decrescente.", style = "color:red")
                                  ),
                                  p(strong("ca:"),
-                                   "Número de vasos sanguíneos colorizados por fluoroscopia.",
+                                   "número de vasos sanguíneos colorizados por fluoroscopia.",
                                    a("Exames de fluoroscopia", href = "https://www.healthcareimaging.com.au/angiography-healthcare-imaging-services.html"),
                                    "estão relacionados com a medição da densidade dos vasos sanguíneos. Isto os torna potenciais indicadores de problemas relacionados à pressão sanguínea e, portanto, de doenças cardiovasculares."
                                  ),
                                  p(strong("thal:"),
                                    "variável categórica significando o status quanto à doença denominada talassemia, que provoca a redução da quantidade de hemoglobina em circulação no sangue.",
                                    span("0: normal, 1: defeito fixo, 2: defeito reversível.", style = "color:red")
+                                 ),
+                                 p(strong("condition:"),
+                                   "indicador de presença ou ausência da doença: ",
+                                    span("0: negativo, 1: positivo.", style = "color:red")
                                  ),
                                  br(),                                
                                 h3("Conjunto de Dados"),
@@ -148,6 +152,9 @@ ui <- fluidPage(
                         "Variáveis Categóricas",
                         br(),
                         fluidRow(
+                          p("A proporção de doentes na amostra equaivale a", strong("46%"), "enquanto as que deram negativo no diagnóstico ocupam",
+                            strong("54%"), "na amostra."
+                          ),
                           sidebarLayout(
                             sidebarPanel(
                               width = 3,
@@ -159,7 +166,10 @@ ui <- fluidPage(
                               checkboxInput("stack", "Empilhar", value = FALSE),
                               br(),
                               h4("Tabela de contingência"),
-                              tableOutput("crossTable")                              
+                              tableOutput("crossTable"),
+                              br(),
+                              h4("Teste de Qui-quadrado"),
+                              textOutput("chisquare")                    
                             ),
                             mainPanel(
                               width = 9,
@@ -282,14 +292,20 @@ ui <- fluidPage(
                               selectInput("tipo_preprocessamento", "Tipo de pré-processamento", choices = c(1:2), width = "100%")
                             ),
                             column(3, 
-                              numericInput("split", "Tamanho de conjunto de treino", min = 0.5, max = 0.9, step = 0.05, value = 0.7, width = "100%")
-                            )
-                            # numericInput("threshold", "Threshold", value = 0.5, step = 0.1)      
+                              numericInput("split", "Tamanho de conjunto de treino", min = 0.5, max = 0.9, step = 0.05, value = 0.75, width = "100%")
+                            )    
                           )                        
                       ),
                       mainPanel(
                           width = 12,
-                          fluidRow(
+                          fluidRow(                            
+                            column(3, plotOutput("roc_knn") %>% withSpinner()),
+                            column(3, plotOutput("roc_glm") %>% withSpinner()),
+                            column(3, plotOutput("roc_lda") %>% withSpinner()),
+                            column(3, plotOutput("roc_rf") %>% withSpinner())
+                          ),
+                          hr(),
+                          fluidRow(                            
                             column(3, performanceUI("knn")),
                             column(3, performanceUI("glm")),
                             column(3, performanceUI("lda")),
@@ -301,30 +317,91 @@ ui <- fluidPage(
               )
              ),
              tabPanel("Modelo Preditivo",
-              p("Pretendo aplicar elastic net via glmnet, mostrar modelo glm por facilidade de interpretação.")
-             )             
+              p("Nesta seção, aplicamos o elastic net via glmnet com o intuito de ajustar um modelo logístico parcimônico. A seguir, apresentamos os resultados entre eles: 
+              o lambda escolhido na penalidade por meio da validação cruzada de 10-folds, a auc do modelo escolhido assim como a curva de ROC seguido os coeficientes estimados para modelo de regressão logística."),
+              fluidRow(
+                column(4, plotOutput("lambda_plot_glmnet", height = 500) %>% withSpinner()),
+                column(4, plotOutput("roc_glmnet", height = 500) %>% withSpinner()),
+                column(4, plotOutput("coef_plot_glmnet", height = 500) %>% withSpinner())
+             ),
+             hr(), p("Modelo aplicado ao conjunto de teste e seus resultados."),
+             fluidRow(
+               column(6, performanceUI("glmnet"), br()),
+               column(6, 
+                br(),
+                h4("Coeficientes estimados"),
+                DTOutput("coef_glmnet") %>% withSpinner())
+             )
+            )             
   )
 )
 
 
 server<- function(input, output, session) {
 
+# Glmnet -----------------------------------------------------------------------
+  set.seed(2020)
+  glmnet <- reactive({
+    run_glmnet()
+  })
+
+  output$lambda_plot_glmnet<- renderPlot({
+    glmnet()$lambda_plot
+  })
+  output$roc_glmnet<- renderPlot({
+    glmnet()$roc
+  })
+  output$coef_glmnet<- renderDT({
+    
+     datatable(
+      run_glmnet()$coef, 
+      rownames = FALSE,
+      options = list(
+        dom = "t",  pageLength = 15,
+        columnDefs = list(list(className = 'dt-center', targets = "_all"))
+      )
+    ) 
+  })
+  output$coef_plot_glmnet<- renderPlot({
+    glmnet()$coef_plot
+  })             
+
 # Comparação -------------------------------------------------------------------
 
   res_Compare <- reactive({
     if(input$tipo_preprocessamento == 1){
-      res = run_HoldOut(data = as.data.frame.matrix(data_scaled), prop = input$split)#, threshold = input$threshold)
+      res = run_HoldOut(data = as.data.frame.matrix(data_scaled), prop = input$split)
     }else{
-      res = run_HoldOut(data = data_scaled_dummy, categorize = TRUE, prop = input$split)#, threshold = input$threshold)
+      res = run_HoldOut(data = data_scaled_dummy, categorize = TRUE, prop = input$split)
     }
-
+    
     return(res)
   })
 
-  performanceServer("knn", res_Compare, method = "knn", titleforROC = "9-nn")
-  performanceServer("glm", res_Compare, method = "glm", titleforROC = "Regressão Logística")
-  performanceServer("lda", res_Compare, method = "lda", titleforROC = "LDA")
-  performanceServer("rf", res_Compare, method = "rf", titleforROC = "Random Forest")
+  rocCurves<- reactive({
+    out = map2(c("knn", "glm", "lda", "rf"), c("9-nn", "Regressão Logística", "LDA", "Random Forest"),
+        ~run_ROC(dataframe = res_Compare()$test, method = .x, titleforPlot = .y)
+    )
+  })
+
+  output[["roc_knn"]] <- renderPlot({
+    rocCurves()[[1]]    
+  })
+  output[["roc_glm"]] <- renderPlot({
+    rocCurves()[[2]]    
+  })
+  output[["roc_lda"]] <- renderPlot({
+    rocCurves()[[3]]    
+  })
+  output[["roc_rf"]] <- renderPlot({
+    rocCurves()[[4]]    
+  })
+  
+  performanceServer("knn", res_Compare, method = "knn")
+  performanceServer("glm", res_Compare, method = "glm")
+  performanceServer("lda", res_Compare, method = "lda")
+  performanceServer("rf", res_Compare, method = "rf")
+  performanceServer("glmnet", glmnet, method = "glmnet")
   
 
 # Técnicas empregadas ----------------------------------------------------------
@@ -487,14 +564,47 @@ server<- function(input, output, session) {
 # Variáveis Categóricas --------------------------------------------------------
   
   # Tabela cruzada
-  output$crossTable <- renderTable({
+  chiSqTab <- reactive({
+    out = list()
+
     fator = pull(heart, input$fator)
     tab = table(fator, Y) %>% as.data.frame.matrix()  
+    out$chsq <- chisq.test(tab) 
+
     colnames(tab) = c("Negativo", "Positivo")  
     tab[, "Soma"] = rowSums(tab) %>% as.integer()
-    tab["Soma",] = colSums(tab)%>% as.integer()     
-    return(tab)    
+    tab["Soma",] = colSums(tab)%>% as.integer()  
+
+    out$tab = tab
+    return(out)
+  })
+
+
+  output$crossTable <- renderTable({
+    chiSqTab()$tab
   }, align = "c", rownames = TRUE)
+
+  output$chisquare <- renderText({
+    p = chiSqTab()$chsq$p.value 
+    return(
+      print(paste(
+        "Valor-p",
+        ifelse( 
+          p < 0.05,
+          "<",
+          "≥"
+        ),
+        "5 %,",
+        ifelse( 
+          p < 0.05,
+          "",
+          "não"
+        ),
+        "há associação entre as duas variáveis."
+      )
+     )
+    )
+  })
 
   # Gráfico de barra ----
   output$plot_3 <- renderPlot({

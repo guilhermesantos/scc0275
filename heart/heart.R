@@ -1,5 +1,3 @@
-
-
 X_scaled = apply(X, 2, function(col) { (col-mean(col))/sd(col)})  
 X_scaled_dummy = X %>% mutate_at(vars(cont_names), ~(. - mean(.))/sd(.))
 data_scaled = cbind(X_scaled, Y)
@@ -7,9 +5,7 @@ data_scaled_dummy = cbind(X_scaled_dummy, Y)
 
 # 10-Fold Cross Validation -----------------------------------------------------
 
-
 # Functions --------------------------------------------------------------------
-
 # Cross validation sampling ----------------------------------------------------
 prepare_folds <- function(data, colX, colY, k_fold = 10){
 
@@ -41,6 +37,24 @@ prepare_folds <- function(data, colX, colY, k_fold = 10){
   }
 
   return(list(X.folds = X.folds, Y.folds = Y.folds))
+}
+
+# knn algoritm -----------------------------------------------------------------
+knn <- function(query, k, X, Y) {
+  E = apply(X, 1, function(row) { sqrt(sum((row - query)^2)) })
+  row.ids = sort.list(E,dec=F)[1:k]
+  classes = unique(Y)
+  count = rep(0, length(classes))
+  i = 1
+  for (class in classes) {
+    count[i] = sum(class == Y[row.ids])
+    i = i + 1
+  }
+  ret = list()
+  ret$classes = classes
+  ret$count = count
+  ret$max.prob.class = classes[which.max(count)]
+  return (ret)
 }
 
 # Implement knn ----------------------------------------------------------------
@@ -91,24 +105,6 @@ run_k_knn <- function(X.folds, Y.folds, k_knn = 3){
     sd_acc_test = sd(acc_test)
     )
   )
-}
-
-# knn algoritm -----------------------------------------------------------------
-knn <- function(query, k, X, Y) {
-  E = apply(X, 1, function(row) { sqrt(sum((row - query)^2)) })
-  row.ids = sort.list(E,dec=F)[1:k]
-  classes = unique(Y)
-  count = rep(0, length(classes))
-  i = 1
-  for (class in classes) {
-    count[i] = sum(class == Y[row.ids])
-    i = i + 1
-  }
-  ret = list()
-  ret$classes = classes
-  ret$count = count
-  ret$max.prob.class = classes[which.max(count)]
-  return (ret)
 }
 
 # Implement Logistic Regression ------------------------------------------------
@@ -227,7 +223,6 @@ run_rf <- function(X.folds, Y.folds){
   for (i in 1:k_fold) {
     X.train = NULL
     Y.train = c()
-
     # Treinar com todos os folds exceto o fold i
     for (j in setdiff(1:k_fold, i)) {
       X.train = rbind(X.train, X.folds[[j]]) 
@@ -240,9 +235,8 @@ run_rf <- function(X.folds, Y.folds){
     
     acc_train[i] = mean(predict(fit) == dados_train[, "condition"])
 
-       
-    # levels(dados_test$age) =  levels(dados_test$trestbps)  =  levels(dados_test$chol) = levels(dados_test$thalach) = levels(dados_test$oldpeak) = 0
     # Testar com o fold = i
+    cat("test RF on fold", i, "\n")
     dados_test = data.frame(X.folds[[i]], condition = factor(Y.folds[[i]]))
     levels(dados_test$cp) = fit$forest$xlevels$cp
     levels(dados_test$restecg) = fit$forest$xlevels$restecg
@@ -324,6 +318,7 @@ run_CV <- function(data, categorize = FALSE){
 
 # Hold-one-out -----------------------------------------------------------------
 run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
+  # set.seed(8888)
   
   split = initial_split(data, prop = prop, strata = "Y")
   # Conjunto de Treinamento
@@ -336,43 +331,54 @@ run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
     yhat_train_knn[i] = knn(query = x, k = 9, X = as.matrix(train_data[,-14]), Y = as.matrix(train_data[,14]))$max.prob.class
   }  
 
-  if(categorize) train_data = train_data %>% mutate_at(factors_names, ~factor(.))
+  if(categorize) {
+    train_data_knn = train_data
+    train_data = train_data %>% mutate_at(factors_names, ~factor(.))
+  }
+
   glm = glm(Y ~., family = binomial, data = train_data) 
   yhat_train_glm = ifelse( fitted(glm)  > threshold, 1, 0)
   lda = lda(Y ~., data = train_data) 
   yhat_train_lda = ifelse( predict(lda)$posterior[,2] > threshold, 1, 0)
   
+  # Tune for mtry and node size 
   grid = expand.grid(mtry = 2:5, nodesize = 2:8)
-  # Tune for mtry
   oob = c()
-  for(i in 1:25){
+  for(i in 1:28){
     temp = randomForest(factor(Y) ~ ., data = train_data, mtry = grid[i, 1], nodesize = grid[i, 2]) 
     oob[i] = temp$err.rate[nrow(temp$err.rate), 1]
   }
   param = grid[which(oob == min(oob)),]
-  print(paste0("best try: ", param))
-  rf = randomForest(factor(Y) ~ ., data = train_data,mtry = grid[1, 1], nodesize = grid[2, 2], importance = TRUE, proximity = TRUE) 
+  print(paste0("best mtry: ", param[1, 1], " and best node size: ", param[1,2]))
+  rf = randomForest(factor(Y) ~ ., data = train_data, mtry = param[1,1], nodesize = param[1,2], importance = TRUE, proximity = TRUE) 
   yhat_train_rf = predict(rf)
  
   train = data.frame(truth = train_data[,"Y"], predicted_knn = yhat_train_knn, predicted_glm = yhat_train_glm, predicted_lda = yhat_train_lda, predicted_rf = yhat_train_rf)
   train = train %>%
     mutate_if(is.numeric, as.factor)
+  print("Train:")
   print(apply(map_df(train[,-1], ~train$truth == .x), 2, mean))
 
+  # On test data ---------------------------------------------------------------
   yhat_test_knn = c()
   prob_knn = list()
   for (i in 1:nrow(test_data)) {
     x = as.matrix(test_data[i,-14])   
-    res = knn(query = x, k = 9, X = as.matrix(test_data[,-14]), Y = as.matrix(test_data[,14]))
+    if(!categorize){
+      res = knn(query = x, k = 9, X = as.matrix(train_data[,-14]), Y = as.matrix(train_data[,14]))
+    } else {
+       res = knn(query = x, k = 9, X = as.matrix(train_data_knn[,-14]), Y = as.matrix(train_data_knn[,14]))
+    }    
     prob_knn[[i]] = res$count/9 
     yhat_test_knn[i] = res$max.prob.class
   }
+  yhat_test_knn = factor(yhat_test_knn)
   
   if(categorize) test_data = test_data %>% mutate_at(factors_names, ~factor(.))
   Class1_glm = predict(glm,test_data[,-14], type = "response") 
-  yhat_test_glm = ifelse( predict(glm,test_data[,-14], type = "response")  > threshold, 1, 0)
+  yhat_test_glm = ifelse( predict(glm,test_data[,-14], type = "response")  > threshold, 1, 0) %>% as.factor()
   lda_res = predict(lda, newdata = test_data)
-  yhat_test_lda = ifelse( predict(lda, newdata = test_data)$posterior[,2] > threshold, 1, 0)
+  yhat_test_lda = ifelse( predict(lda, newdata = test_data)$posterior[,2] > threshold, 1, 0)  %>% as.factor()
 
   if("predicted_rf" %in% names(train) & categorize == TRUE){
     test_data[factors_names] = test_data[factors_names] %>% mutate_if(is.numeric, as.factor)
@@ -390,120 +396,107 @@ run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
                     Class1_lda = lda_res$posterior[,1], Class2_lda = lda_res$posterior[,2], predicted_lda = yhat_test_lda,
                     Class1_rf = Class_rf[,1], Class2_rf = Class_rf[,2], predicted_rf = yhat_test_rf)
 
+  print("Test:")
+  print(apply(map_df(test %>% dplyr::select(starts_with("predicted")), ~test$truth == .x), 2, mean))
+
   return(
     list(
       train = train,
       test = test
     )
   )
-
 }
 
 # Compute ROC and other metrics ------------------------------------------------
 run_ROC <- function(dataframe, titleforPlot = NULL, method){
-  options(yardstick.event_first = FALSE)
+  
   dataframe = dataframe %>% mutate_at(vars("truth", contains("predicted")), as.factor)  
   
   colClass = paste0("Class2_", method)
-  aux = dataframe%>%
-    roc_auc(truth, colClass) 
-  auc = as.numeric(aux[,3]) 
+  auc = dataframe %>%
+    roc_auc(truth, colClass, event_level = 'second') %>% dplyr::select(is.numeric)
 
-  roc = dataframe %>%
-    roc_curve(truth, colClass) %>%
+  roc_tab = dataframe %>%
+    roc_curve(truth, colClass, event_level = 'second')   
+  optimal_cut = roc_tab[which.max(roc_tab$sensitivity + roc_tab$specificity), ] %>% as.numeric()
+   
+  roc = roc_tab  %>%
     ggplot(aes(x = 1 - specificity, y = sensitivity)) +
     geom_path(size = 1.2, color = "blue") +
     geom_abline(lty = 3) +
     coord_equal() +
     labs(x = "Taxa de Falsos Positivos", y = "Taxa de Verdadeiros Positivos", title = paste("Curva ROC", titleforPlot)) +
-    annotate("text", x = 0.80, y = 0, label = paste("AUC =", round(auc, 4)), colour = "orange", size = 8)
+    annotate("text", x = 0.80, y = 0, label = paste("AUC =", round(auc, 4)), colour = "orange", size = 8) + 
+      geom_point(aes(x = 1 - optimal_cut[2], y = optimal_cut[3]), color = "red", size = 4) +
+      annotate("text", x = 1 - optimal_cut[2], y = optimal_cut[3] + 0.05, label = round(optimal_cut[1], 2), colour = "red", size = 4)    
+
+  return(roc)
+}
+
+run_ConfMat <- function(dataframe, method, cut = 0.5) {
+
+  dataframe = dataframe %>% mutate_at(vars("truth", contains("predicted")), as.factor)  
 
   aux1 = dataframe %>%
-    select_at(vars("truth", ends_with(method)))
-
-  var = sym(paste0("predicted_", method))
+    dplyr::select_at(vars("truth", ends_with(method)))
+  
+  var = sym(paste0("predicted_", method))  
+  aux1[, paste0("predicted_", method)] = ifelse(dplyr::select(aux1, starts_with("Class2")) < cut, 0,1) %>% as.factor()
   
   confMat = aux1 %>%
         conf_mat(truth, var)
+
   confMat_plot = autoplot(confMat, type = "heatmap") +
    ggplot2::scale_fill_gradient(low = "white", high = "blue") +
    labs(x = "Verdadeiro", y = "Predito")
 
   metric = aux1 %>%
-    metrics(truth, var)  
+    metrics(truth, var) 
 
   return(list(
-    auc = auc,
-    roc = roc,
     confMat = confMat,
     confMat_plot = confMat_plot,
     metric = metric
   ))
 }
 
-# Compute accuracy and kappa ---------------------------------------------------
-run_Metric <- function(dataframe, method){
-    # dataframe is a data frame with two columns: truth and predicted value named "predicted_XX" ends with method
-    # returns a data frame contains two metrics: accuracy and kappa coefficient
-    dataframe = dataframe %>% mutate_if(is.numeric, as.factor)  
-    var = sym(paste0("predicted_", method))
-    return(
-        dataframe %>%
-        metrics(truth, var)
-    )
-}
 
 # Module function to render performance results --------------------------------
 performanceUI <-  function(id) {
   ns <- NS(id)
 
   tagList(
-    plotOutput(ns("roc_curve")) %>% withSpinner(),
+    h4("Matriz de confusão"),
+    numericInput(ns("threshold"), "Threshold", value = 0.5, step = 0.1),
     plotOutput(ns("confusion_matrix")) %>% withSpinner(),
-    h3("Treino"),
-    DTOutput(ns("metric_train")) %>% withSpinner(),
-    h3("Teste"),
+    h4("Metríca"),
     DTOutput(ns("metric_test")) %>% withSpinner()
   )
   
 }
 
-performanceServer <- function(id, results, method, titleforROC) {
+performanceServer <- function(id, results, method, cut = 0.5) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     out<- reactive({
+       cut = ifelse(!is.null(input$threshold),input$threshold , 0.5)
       return(
-        run_ROC(
+        run_ConfMat(
           dataframe = results()$test, 
-          method = method, 
-          titleforPlot = titleforROC
+          method = method,
+          cut = cut
         )
       )
-    })
-    output$roc_curve <- renderPlot({
-      out()$roc
-    })
+    })    
 
     output$confusion_matrix <- renderPlot({
       out()$confMat_plot
     })
 
-    output$metric_train <- renderDT({
-      datatable(
-        out()$metric[,c(1,3)],
-        rownames = FALSE, colnames = c("métrica", "valor estimado"),
-        options = list(dom = "t",
-                        columnDefs = list(list(className = 'dt-center', targets = "_all"))
-        )
-      ) %>%
-      formatRound(2, 4) 
-
-    })
-
     output$metric_test <- renderDT({
       datatable(
-        run_Metric(dataframe = results()$train, method = method)[,c(1,3)],
+        out()$metric[,c(1,3)],
         rownames = FALSE, colnames = c("métrica", "valor estimado"),
         options = list(dom = "t",
                   columnDefs = list(list(className = 'dt-center', targets = "_all"))
@@ -516,25 +509,137 @@ performanceServer <- function(id, results, method, titleforROC) {
   })
 }
 
-# distance.matrix <- as.dist(1-rf$proximity)
+# Predictive model vai tidy model-----------------------------------------------
+# Split train-test 0.75/0.25
 
-# mds.stuff <- cmdscale(distance.matrix, eig=TRUE, x.ret=TRUE)
+run_glmnet <- function(){
 
-# ## calculate the percentage of variation that each MDS axis accounts for...
-# mds.var.per <- round(mds.stuff$eig/sum(mds.stuff$eig)*100, 1)
+  data = data_scaled_dummy %>%
+    mutate_at(c(factors_names, "Y"), as.factor) %>%
+    mutate(cp = ifelse(cp != 3, 0, 1) %>% as.factor(),
+          restecg = ifelse(restecg == 2, 1, 0) %>% as.factor(),
+          slope = ifelse(slope == 0, 0, 1) %>% as.factor(),
+          ca = ifelse(ca == 0, 0, 1) %>% as.factor(),
+          thal = ifelse(thal == 0, 0, 1) %>% as.factor()
+    ) 
+  
+  heart_split <- initial_split(data, strata = Y) 
+  heart_train <- training(heart_split) #%>% as.matrix()
+  heart_test  <- testing(heart_split) #%>% as.matrix()
 
-# ## now make a fancy looking plot that shows the MDS axes and the variation:
-# mds.values <- mds.stuff$points
-# mds.data <- data.frame(Sample=rownames(mds.values),
-#   X=mds.values[,1],
-#   Y=mds.values[,2],
-#   Status=train_data$Y)
+  lrP_mod <- 
+    logistic_reg(penalty = tune(), mixture = 1) %>% 
+    set_engine("glmnet")
 
-# ggplot(data=mds.data, aes(x=X, y=Y, label=Sample)) + 
-#   geom_text(aes(color=Status)) +
-#   theme_bw() +
-#   xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
-#   ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
-#   ggtitle("MDS plot using (1 - Random Forest Proximities)")
+  lrP_wf <- workflow() %>%
+    add_formula(Y ~.) %>%
+    add_model(lrP_mod) 
 
-# MDSplot(rf, factor(train_data$Y), k=2, palette=NULL, pch=4)
+  folds <- vfold_cv(heart_train, v = 10)
+
+  doParallel::registerDoParallel()
+  lambda_grid <- grid_regular(penalty(), levels = 15)
+
+  set.seed(2020)
+  lrP_res <- tune_grid(
+    lrP_wf,
+    resamples = folds ,
+    grid = lambda_grid,
+    control = control_grid(save_pred = TRUE),
+    metrics = metric_set(roc_auc)
+  )
+
+  lrP_best <-  lrP_res %>%
+      collect_metrics() %>%
+      slice(13)
+
+  auc <- lrP_res %>% 
+    collect_predictions(parameters = lrP_best) %>% 
+    roc_auc(Y, .pred_1, event_level = 'second') 
+  
+  lambda <- as.numeric(lrP_best[,1])
+  auc <- as.numeric(auc[,3])
+
+  lambda_plot <- lrP_res %>%
+    collect_metrics() %>% 
+    ggplot(aes(x = penalty, y = mean)) + 
+    geom_point(size = 4, color = "black") + 
+    geom_line(size = 1.2, color = "blue") + 
+    ylab("AUC") +
+    scale_x_log10(labels = scales::label_number()) +
+    labs(x = "penalidade") +
+    geom_segment(aes(x = lambda, y = -Inf, xend = lambda, yend = Inf),
+                     color = "orange", linetype = 'dashed', size = 1.2) +
+    annotate("text", x = 0.01, y = 0.5, label = round(lambda, 4), colour = "orange", size = 8)  
+
+  print(
+    lrP_best
+  )
+
+  roc_tab <- lrP_res %>% 
+    collect_predictions(parameters = lrP_best) %>% 
+    roc_curve(Y, .pred_1, event_level = 'second')
+
+  optimal_cut = roc_tab[which.max(roc_tab$sensitivity + roc_tab$specificity), ] %>% as.numeric()
+
+  roc <- 
+    roc_tab %>%
+    ggplot(aes(x = 1 - specificity, y = sensitivity)) +
+    geom_path(size = 1.2, color = "blue") +
+    geom_abline(lty = 3) +
+    coord_equal() +
+    labs(x = "Taxa de Falsos Positivos", y = "Taxa de Verdadeiros Positivos", title = paste("Curva ROC", "glmnet")) +
+    annotate("text", x = auc - 0.05, y = 0, label = paste("AUC =", round(auc, 2)), colour = "orange", size = 8) +
+    geom_point(aes(x = 1 - optimal_cut[2], y = optimal_cut[3]), color = "red", size = 4) +
+    annotate("text", x = 1 - optimal_cut[2], y = optimal_cut[3] + 0.05, label = round(optimal_cut[1], 2), colour = "red", size = 4)   
+
+  fit <- lrP_wf %>% 
+      finalize_workflow(lrP_best) %>%
+      fit(heart_train) 
+  
+  coef <- 
+      fit %>%
+      pull_workflow_fit() %>%
+      tidy() %>%
+      rename(Termo = term, Estimado = estimate, Penalidade = penalty)
+
+  coef_plot <- coef[-1,] %>%
+    group_by(Estimado > 0) %>%
+    top_n(14, abs(Estimado)) %>%
+    ungroup() %>%
+    ggplot(aes(fct_reorder(Termo, Estimado), Estimado, fill = Estimado > 0)) +
+    geom_col(alpha = 0.8, show.legend = FALSE) +
+    coord_flip() +
+    scale_fill_manual(values=c("#0073C2FF", "#EFC000FF")) +
+    labs(
+      x = NULL,
+      title = "Impacto de termo em cálculo das probabilidades"
+    ) +
+    expand_limits(y = -0.5)
+
+  coef[,2:3] = round(coef[,2:3], 4)
+  yhat <- 
+      heart_test %>%
+      bind_cols(
+        predict(fit, new_data = heart_test),
+        predict(fit, new_data = heart_test, type = "prob")
+      ) %>%
+      rename(predicted_glmnet = .pred_class,
+             Class1_glmnet = .pred_0,
+             Class2_glmnet = .pred_1,
+             truth = Y
+      ) %>%
+      dplyr::select(truth, Class1_glmnet, Class2_glmnet, predicted_glmnet)
+
+  return(
+      list(
+        lambda_plot = lambda_plot,
+        lambda = lambda,
+        roc = roc,
+        coef = coef,
+        coef_plot = coef_plot,
+        test = yhat
+      )
+    )
+    
+}

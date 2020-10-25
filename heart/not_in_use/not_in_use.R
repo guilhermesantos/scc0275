@@ -88,3 +88,43 @@
 # colnames(tab_kfold) = paste(5:10, "folds")
 # rownames(tab_kfold) = paste0(1:10, "-nn")
 # tab_kfold
+
+
+# plotHist <- function(dataframe, col1, col2){
+  
+#   class1 = names(dataframe)[col1]
+#   class2 = names(dataframe)[col2]
+#   new = data.frame(prob = c(dataframe[[col1]], dataframe[[col1]]), class = rep(c("Negativo", "Positivo"), each = nrow(dataframe)))
+#   ggplot(new, aes(x = prob, fill = factor(class))) +
+#     geom_histogram(alpha = 0.75, color = 'white') +
+#     facet_wrap(~factor(class))
+
+# }
+
+# plotHist(res$test, 2, 3)
+# plotHist(res$test, 5, 6)
+# plotHist(res$test, 8, 9)
+# plotHist(res$test, 11, 12)
+
+# distance.matrix <- as.dist(1-rf$proximity)
+
+# mds.stuff <- cmdscale(distance.matrix, eig=TRUE, x.ret=TRUE)
+
+# ## calculate the percentage of variation that each MDS axis accounts for...
+# mds.var.per <- round(mds.stuff$eig/sum(mds.stuff$eig)*100, 1)
+
+# ## now make a fancy looking plot that shows the MDS axes and the variation:
+# mds.values <- mds.stuff$points
+# mds.data <- data.frame(Sample=rownames(mds.values),
+#   X=mds.values[,1],
+#   Y=mds.values[,2],
+#   Status=train_data$Y)
+
+# ggplot(data=mds.data, aes(x=X, y=Y, label=Sample)) + 
+#   geom_text(aes(color=Status)) +
+#   theme_bw() +
+#   xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+#   ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+#   ggtitle("MDS plot using (1 - Random Forest Proximities)")
+
+# MDSplot(rf, factor(train_data$Y), k=2, palette=NULL, pch=4)

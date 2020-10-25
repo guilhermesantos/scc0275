@@ -66,7 +66,7 @@ cont_names <- names(heart)[!names(heart) %in% c(factors_names, "condition")]
 # ggpairs(data = heart[cont_names], mapping = aes(color = as.factor(heart$condition))) +
 #   labs(title = "Correlação entre as variáveis contínuas")
 
-
+map_dbl(heart[cont_names], median)
 resumo = list()
 for (i in 1:5){
   resumo[[i]] = heart[, c(cont_names[i], "condition")] %>%
@@ -166,8 +166,24 @@ p4 = map(factors_names,
                  fill = "Doença")
 )
 
+
 p5 = c(p3, p4)  
 
 entropy = map_dfc(tidiedData[factors_names],
      ~ mutinformation(.x, tidiedData$condition)
 )
+
+
+
+ggplot(tidiedData[cont_names])  +
+      geom_density(aes(x = age), alpha = 0.7) +
+      geom_density(aes(x = age ,fill = tidiedData$condition)) +
+      scale_x_continuous(breaks = unlist(resumo[[i]][2]), label = round(unlist(resumo[[i]][2]), 2)) +
+      geom_segment(aes(x = unlist(resumo[[i]][2])[1], y = -Inf, xend = unlist(resumo[[i]][2])[1], yend = Inf),
+                   color = 2, linetype = 'dashed', size = 1) +
+      geom_segment(aes(x = unlist(resumo[[i]][2])[2], y = -Inf, xend = unlist(resumo[[i]][2])[2], yend = Inf),
+                   color = 4, linetype = 'dashed', size = 1) +
+      labs(title = paste("Distribuição de", cont_names[i]),
+           x = "",
+           y = "",
+           fill = "Doença") 
