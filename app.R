@@ -254,7 +254,21 @@ ui <- fluidPage(
                           
                           
                         )                        
-                      ) 
+                      ),
+                      tabPanel(
+                        "Resumo Descritivo",
+                        br(),
+                        fluidRow(
+                          column(3, 
+                            h4("Variáveis categóricas"),
+                            DTOutput("summary1")
+                          ),
+                          column(9,
+                            h4("Variáveis contínuas"),
+                            DTOutput("summary2")
+                          )
+                        )          
+                      )
                   )                    
              ),
              tabPanel("Técnicas empregadas",  
@@ -450,6 +464,21 @@ server<- function(input, output, session) {
     )
   })
 
+# Resumo Descritivo ------------------------------------------------------------
+output$summary1 <- renderDT({
+  datatable(
+      summary1, rownames = FALSE, 
+      options = list(dom = "t")
+    )
+})
+output$summary2 <- renderDT({
+  datatable(
+      summary2, rownames = FALSE, 
+      options = list(dom = "t", 
+      columnDefs = list(list(width = '80px', className = 'dt-center', targets = "_all"))
+      )
+    )
+})
 # Variáveis Contínuas ----------------------------------------------------------
   output$plot_1 <- renderPlot({
     var = pull(heart, input$var)
@@ -560,6 +589,7 @@ server<- function(input, output, session) {
       }       
          
   })
+  
   
 # Variáveis Categóricas --------------------------------------------------------
   

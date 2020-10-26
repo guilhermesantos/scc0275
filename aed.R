@@ -173,8 +173,6 @@ entropy = map_dfc(tidiedData[factors_names],
      ~ mutinformation(.x, tidiedData$condition)
 )
 
-
-
 ggplot(tidiedData[cont_names])  +
       geom_density(aes(x = age), alpha = 0.7) +
       geom_density(aes(x = age ,fill = tidiedData$condition)) +
@@ -187,3 +185,12 @@ ggplot(tidiedData[cont_names])  +
            x = "",
            y = "",
            fill = "Doença") 
+
+summary1 = skim(heart[c(factors_names, "condition")] %>% mutate_at(c(factors_names, "condition"), as.factor))
+summary1 = summary1[, c(2, 7)]
+colnames(summary1) = c("Variável", "Nº de nível", "Nº de observações por nível")
+
+
+summary2 = skim(heart[cont_names]) 
+summary2 = summary2[, c(2,5:12)] %>% modify_if(is.numeric, ~round(.,4))
+colnames(summary2) = c("Variável", "Média", "Desvio padrão", "Mínimo", "1º Quartil", "Mediana", "3º Quartil", "Máximo", "Histograma")
