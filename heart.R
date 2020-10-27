@@ -8,7 +8,7 @@ data_scaled_dummy = cbind(X_scaled_dummy, Y)
 # Functions --------------------------------------------------------------------
 # Cross validation sampling ----------------------------------------------------
 prepare_folds <- function(data, colX, colY, k_fold = 10){
-
+  set.seed(2020)
   require(dismo)
 
   # Lista com comprimento de K
@@ -318,7 +318,7 @@ run_CV <- function(data, categorize = FALSE){
 
 # Hold-one-out -----------------------------------------------------------------
 run_HoldOut <- function(data, categorize = FALSE, prop = 0.7, threshold = 0.5) {
-  # set.seed(8888)
+  set.seed(2020)
   
   split = initial_split(data, prop = prop, strata = "Y")
   # Conjunto de Treinamento
